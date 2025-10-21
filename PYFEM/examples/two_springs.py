@@ -2,15 +2,14 @@
 """
 Solve a series combination of two 1D springs.
 
-pyfem07
-Created: 18/10/2025 17:10:52
-Last modified: 2025/10/19 20:28:43
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Created: 2025/08/02 17:32:52
+Last modified: 2025/10/22 00:38:06
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np
 
-import PYFEM.pyfem.fem as fem
+import pyfem
 
 
 def main() -> None:
@@ -28,6 +27,8 @@ def main() -> None:
         [1, 2],
         [2, 0],
     ]
+
+    mesh = pyfem.Mesh(num_nodes, num_elements, element_connectivity)
 
     # - Define material properties
 
@@ -49,7 +50,7 @@ def main() -> None:
     # - Initialize arrays
 
     # -- Compute total number of DOFs
-    total_dofs = dofs_per_node * num_nodes
+    total_dofs = dofs_per_node * mesh.num_nodes
 
     # -- Initialize the global stiffness matrix as a square matrix of zeros
     global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
@@ -60,8 +61,8 @@ def main() -> None:
     # Processing
 
     # - Assemble the global stiffness matrix
-    global_stiffness_matrix = fem.assemble_global_stiffness_matrix(
-        num_elements, element_stiffness, element_connectivity, global_stiffness_matrix
+    pyfem.assemble_global_stiffness_matrix(
+        mesh, element_stiffness, global_stiffness_matrix
     )
     print("\n- Global stiffness matrix K:")
     for row in global_stiffness_matrix:
@@ -71,10 +72,10 @@ def main() -> None:
     original_global_stiffness_matrix = global_stiffness_matrix.copy()
 
     # - Boundary conditions: Apply forces
-    global_force_vector = fem.apply_nodal_forces(applied_forces, global_force_vector)
+    pyfem.apply_nodal_forces(applied_forces, global_force_vector)
 
     # - Boundary conditions: Constrain displacements
-    fem.apply_prescribed_displacements(
+    pyfem.apply_prescribed_displacements(
         prescribed_displacements,
         global_stiffness_matrix,
         global_force_vector,
@@ -96,20 +97,13 @@ def main() -> None:
     # Postprocessing: Calculate strain energy for each spring and for system of springs
 
     # - Compute strain energy at element level
-    fem.compute_strain_energy_local(
-        num_elements, element_stiffness, element_connectivity, nodal_displacements
-    )
+    pyfem.compute_strain_energy_local(mesh, element_stiffness, nodal_displacements)
 
     # - Compute strain energy at system level
-    fem.compute_strain_energy_global(
+    pyfem.compute_strain_energy_global(
         original_global_stiffness_matrix, nodal_displacements
     )
 
 
 if __name__ == "__main__":
     main()
-    main()
-    main()
-    main()
-
-jheuqwg

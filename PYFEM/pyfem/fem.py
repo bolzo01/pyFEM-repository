@@ -1,27 +1,33 @@
 #!/usr/bin/env python
 """
-Module for FEA procedures
+Module for FEA procedures.
 
-Created: 18/10/2025 17:10:52
-Last modified: 2025/10/18 17:20:58
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Created: 2025/10/08 17:11:28
+Last modified: 2025/10/12 21:51:27
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np
 
+from .mesh import Mesh
+
 
 def assemble_global_stiffness_matrix(
-    num_elements: int,
+    mesh: Mesh,
     element_stiffness: list[float],
-    element_connectivity: list[list[int]],
     global_stiffness_matrix: np.ndarray,
-) -> np.ndarray:
+) -> None:
     """
     Assembles the global stiffness matrix by integrating element stiffness matrices.
 
+    This function modifies the global stiffness matrix in place.
+
     Returns:
-        The fully assembled global stiffness matrix.
+        None.
     """
+
+    num_elements = mesh.num_elements
+    element_connectivity = mesh.element_connectivity
 
     # Assemble the global stiffness matrix
     print("\n- Assembling local stiffness matrix into global stiffness matrix")
@@ -56,38 +62,42 @@ def assemble_global_stiffness_matrix(
                     i, j
                 ]
 
-    return global_stiffness_matrix
+    return None
 
 
 def apply_nodal_forces(
-    applied_forces: list[tuple[float]],
+    applied_forces: list[tuple[int, float]],
     global_force_vector: np.ndarray,
-) -> np.ndarray:
+) -> None:
     """
     Applies nodal forces to the global force vector (Neumann boundary conditions).
 
+    This function modifies the global force vector in place.
+
     Returns:
-        The updated global force vector.
+        None.
     """
 
     for dof, value in applied_forces:
         global_force_vector[int(dof)] = value
 
-    return global_force_vector
+    return None
 
 
 def apply_prescribed_displacements(
-    prescribed_displacements: list[tuple[float]],
+    prescribed_displacements: list[tuple[int, float]],
     global_stiffness_matrix: np.ndarray,
     global_force_vector: np.ndarray,
     total_dofs: int,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> None:
     """
     Applies the prescribed displacements by modifying the global stiffness
     matrix and force vector (Dirichlet boundary conditions).
 
+    This function modifies the updated global stiffness matrix and global force vector in place.
+
     Returns:
-        None
+        None.
     """
 
     for dof, value in prescribed_displacements:
@@ -97,16 +107,12 @@ def apply_prescribed_displacements(
         global_stiffness_matrix[int(dof), int(dof)] = 1.0  # Put one in the diagonal
         global_force_vector[int(dof)] = 0.0
 
-    return (
-        global_stiffness_matrix,
-        global_force_vector,
-    )
+    return None
 
 
 def compute_strain_energy_local(
-    num_elements: int,
+    mesh: Mesh,
     element_stiffness: list[float],
-    element_connectivity: list[list[int]],
     nodal_displacements: np.ndarray,
 ) -> None:
     """
@@ -115,6 +121,9 @@ def compute_strain_energy_local(
     Returns:
         None.
     """
+
+    num_elements = mesh.num_elements
+    element_connectivity = mesh.element_connectivity
 
     total_strain_energy = 0.0
     for element_index in range(num_elements):

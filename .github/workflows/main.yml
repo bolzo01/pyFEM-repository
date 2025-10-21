@@ -1,0 +1,21 @@
+name: Notifica issue su commit
+
+on:
+  push:        # Trigger: ogni volta che qualcuno fa un push (commit)
+    branches:
+      - "**"   # su tutti i branch
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Commenta issue collegato
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: 1  # <-- cambia con il numero del tuo issue
+          body: |
+            🔔 Nuovo commit su **${{ github.ref_name }}**
+            **Autore:** ${{ github.actor }}
+            **Messaggio:** ${{ github.event.head_commit.message }}
+            [Visualizza commit →](${{ github.event.head_commit.url }})

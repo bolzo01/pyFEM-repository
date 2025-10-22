@@ -3,7 +3,7 @@
 Solve a series combination of two 1D springs.
 
 Created: 2025/08/02 17:32:52
-Last modified: 2025/10/22 00:38:06
+Last modified: 2025/10/22 15:52:18
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -28,12 +28,35 @@ def main() -> None:
         [2, 0],
     ]
 
-    mesh = pyfem.Mesh(num_nodes, num_elements, element_connectivity)
-
     # - Define material properties
-
     # -- Stiffness properties for each spring element
-    element_stiffness = [1.0, 2.0]
+    # Materials registry as list of (label, entry) pairs
+    materials = pyfem.make_materials(
+        [
+            (
+                "soft",
+                ("spring_1D", {"k": 1.0}),
+            ),
+            (
+                "stiff",
+                ("spring_1D", {"k": 2.0}),
+            ),
+        ]
+    )
+
+    # Per-element material labels
+    element_material = ["soft", "stiff"]
+
+    # Mesh object
+    mesh = pyfem.Mesh(
+        num_nodes=num_nodes,
+        num_elements=num_elements,
+        element_connectivity=element_connectivity,
+        element_material=element_material,
+    )
+
+    # Validate mesh and materials
+    pyfem.validate_mesh_and_materials(mesh, materials)
 
     # - Define boundary conditions
 
@@ -61,9 +84,7 @@ def main() -> None:
     # Processing
 
     # - Assemble the global stiffness matrix
-    pyfem.assemble_global_stiffness_matrix(
-        mesh, element_stiffness, global_stiffness_matrix
-    )
+    pyfem.assemble_global_stiffness_matrix(mesh, materials, global_stiffness_matrix)
     print("\n- Global stiffness matrix K:")
     for row in global_stiffness_matrix:
         print(row)
@@ -97,7 +118,7 @@ def main() -> None:
     # Postprocessing: Calculate strain energy for each spring and for system of springs
 
     # - Compute strain energy at element level
-    pyfem.compute_strain_energy_local(mesh, element_stiffness, nodal_displacements)
+    pyfem.compute_strain_energy_local(mesh, materials, nodal_displacements)
 
     # - Compute strain energy at system level
     pyfem.compute_strain_energy_global(

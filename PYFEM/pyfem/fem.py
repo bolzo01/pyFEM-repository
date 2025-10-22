@@ -3,18 +3,19 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/10/12 21:51:27
+Last modified: 2025/10/13 11:10:31
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np
 
+from .materials import Materials, param
 from .mesh import Mesh
 
 
 def assemble_global_stiffness_matrix(
     mesh: Mesh,
-    element_stiffness: list[float],
+    materials: Materials,
     global_stiffness_matrix: np.ndarray,
 ) -> None:
     """
@@ -32,21 +33,13 @@ def assemble_global_stiffness_matrix(
     # Assemble the global stiffness matrix
     print("\n- Assembling local stiffness matrix into global stiffness matrix")
     for element_index in range(num_elements):
-        msg = (
-            f"\n-- Generating stiffness matrix for element {element_index}"
-            f" with stiffness {element_stiffness[element_index]}"
-        )
-        print(msg)
-
         # Generate the local stiffness matrix for a one-dimensional spring element
-        stiffness_value = element_stiffness[element_index]
-        local_stiffness_matrix = np.array(
-            [
-                [stiffness_value, -stiffness_value],
-                [-stiffness_value, stiffness_value],
-            ]
-        )
-        print(local_stiffness_matrix)
+        label = mesh.element_material[element_index]
+        mat = materials[label]
+        k_e = param(mat, "k", float)
+        print(f"\n-- Element {element_index}, k = {k_e}")
+        local_stiffness_matrix: np.ndarray = np.array([[k_e, -k_e], [-k_e, k_e]])
+        print("   Local K:\n  ", local_stiffness_matrix)
 
         # Map local degrees of freedom to global degrees of freedom for an element
         # first determine the element nodes through the element connectivity matrix
@@ -112,7 +105,7 @@ def apply_prescribed_displacements(
 
 def compute_strain_energy_local(
     mesh: Mesh,
-    element_stiffness: list[float],
+    materials: Materials,
     nodal_displacements: np.ndarray,
 ) -> None:
     """
@@ -127,7 +120,9 @@ def compute_strain_energy_local(
 
     total_strain_energy = 0.0
     for element_index in range(num_elements):
-        k_spring = element_stiffness[element_index]
+        label = mesh.element_material[element_index]
+        mat = materials[label]
+        k_spring = float(param(mat, "k", float))
         node1, node2 = element_connectivity[element_index]
         u1 = nodal_displacements[node1]
         u2 = nodal_displacements[node2]

@@ -3,7 +3,7 @@
 Module defining the Mesh class for finite element analysis.
 
 Created: 2024/10/13 19:05:39
-Last modified: 2025/10/12 21:14:11
+Last modified: 2025/10/22 15:49:13
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -15,11 +15,21 @@ class Mesh:
     a mesh for finite element analysis.
     """
 
-    # number of nodes
-    num_nodes: int
+    def __init__(
+        self,
+        num_nodes: int,
+        num_elements: int,
+        element_connectivity: list[list[int]],
+        element_material: list[str],
+    ):
+        # number of nodes
+        self.num_nodes = num_nodes
 
-    # number of elements
-    num_elements: int
+        # number of elements
+        self.num_elements = num_elements
 
-    # element connectivity matrix
-    element_connectivity: list[list[int]]
+        # element connectivity matrix
+        self.element_connectivity = element_connectivity
+
+        # element material
+        self.element_material = element_material

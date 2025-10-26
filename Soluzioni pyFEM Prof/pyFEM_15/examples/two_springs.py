@@ -3,8 +3,8 @@
 Solve a series combination of two 1D springs.
 
 Created: 2025/08/02 17:32:52
-Last modified: 2025/10/26 19:53:59
-Author: Francesco Bolzonella (francesco.bolzonella@studentiunipd.it)
+Last modified: 2025/10/18 17:15:37
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import pyfem
@@ -69,9 +69,24 @@ def main() -> None:
     ]
 
     # Processing: Calculate the nodal displacements
-    original_global_stiffness_matrix, nodal_displacements = pyfem.solve_linear_static(
-        prescribed_displacements, applied_forces, materials, mesh, dofs_per_node
+
+    # - Instantiate the solver class
+    solver = pyfem.LinearStaticSolver(
+        mesh,
+        materials,
+        applied_forces,
+        prescribed_displacements,
+        dofs_per_node,
     )
+
+    # - Assemble the global stiffness matrix
+    solver.assemble_global_matrix()
+
+    # - Apply boundary conditions
+    solver.apply_boundary_conditions()
+
+    # - Solve KU=F for the displacement vector
+    nodal_displacements, original_global_stiffness_matrix = solver.solve()
 
     # Postprocessing: Calculate strain energy for each spring and for system of springs
 

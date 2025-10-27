@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/26/10 18:14:50
-Last modified: 2025/10/26 19:53:53
+Last modified: 2025/10/27 11:48:27
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -18,59 +18,80 @@ from .materials import Materials
 from .mesh import Mesh
 
 
-def solve_linear_static(
-    prescribed_displacements: list[tuple[int, float]],
-    applied_forces: list[tuple[int, float]],
-    materials: Materials,
-    mesh: Mesh,
-    dofs_per_node: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Solves the linear system of equations KU=F.
+class LinearStaticSolver:
+    """class for solving linear static finite element problems.
 
-    Returns:
-       Solution array and global stiffness matrix before applying boundary conditions.
-    """
-    # - Initialize arrays
+    This class provides a strategy for generating the system of linear equations
+    (KU=F) and obtaining nodal displacements."""
 
-    # -- Compute total number of DOFs
-    total_dofs = dofs_per_node * mesh.num_nodes
+    def __init__(
+        self,
+        mesh: Mesh,
+        materials: Materials,
+        applied_forces: list[tuple[int, float]],
+        predescribed_displacements: list[tuple[int, float]],
+        dofs_per_node: int,
+    ):
+        self.mesh = mesh
+        self.materials = materials
+        self.applied_forces = applied_forces
+        self.predescribed_displacements = predescribed_displacements
+        self.dofs_per_node = dofs_per_node
 
-    # -- Initialize the global stiffness matrix as a square matrix of zeros
-    global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
+    def solve(self) -> tuple[np.ndarray, np.ndarray]:
+        """Solves the linear system of equations KU=F.
 
-    # -- Initialize the global force vector with zeros
-    global_force_vector = np.zeros(total_dofs)
+        Returns:
+        Solution array and global stiffness matrix before applying boundary conditions.
+        """
 
-    # - Assemble the global stiffness matrix
-    assemble_global_stiffness_matrix(mesh, materials, global_stiffness_matrix)
-    print("\n- Global stiffness matrix K:")
-    for row in global_stiffness_matrix:
-        print(row)
+        # - Initialize arrays
 
-    # - Save a copy of the original global stiffness matrix before applying boundary conditions
-    original_global_stiffness_matrix = global_stiffness_matrix.copy()
+        # -- Compute total number of DOFs
+        total_dofs = self.dofs_per_node * self.mesh.num_nodes
 
-    # - Boundary conditions: Apply forces
-    apply_nodal_forces(applied_forces, global_force_vector)
+        # -- Initialize the global stiffness matrix as a square matrix of zeros
+        global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
 
-    # - Boundary conditions: Constrain displacements
-    apply_prescribed_displacements(
-        prescribed_displacements,
-        global_stiffness_matrix,
-        global_force_vector,
-        total_dofs,
-    )
+        # -- Initialize the global force vector with zeros
+        global_force_vector = np.zeros(total_dofs)
 
-    print("\n- Modified global stiffness matrix K after applying boundary conditions:")
-    for row in global_stiffness_matrix:
-        print(row)
+        # - Assemble the global stiffness matrix
+        assemble_global_stiffness_matrix(
+            self.mesh, self.materials, global_stiffness_matrix
+        )
+        print("\n- Global stiffness matrix K:")
+        for row in global_stiffness_matrix:
+            print(row)
 
-    print("\n- Global force vector F after applying boundary conditions:")
-    print(global_force_vector)
+        # - Save a copy of the original global stiffness matrix before applying boundary conditions
+        original_global_stiffness_matrix = global_stiffness_matrix.copy()
 
-    # - Solve for the nodal displacements
-    nodal_displacements = np.linalg.solve(global_stiffness_matrix, global_force_vector)
-    print("\n- Nodal displacements U:")
-    print(nodal_displacements)
+        # - Boundary conditions: Apply forces
+        apply_nodal_forces(self.applied_forces, global_force_vector)
 
-    return original_global_stiffness_matrix, nodal_displacements
+        # - Boundary conditions: Constrain displacements
+        apply_prescribed_displacements(
+            self.predescribed_displacements,
+            global_stiffness_matrix,
+            global_force_vector,
+            total_dofs,
+        )
+
+        print(
+            "\n- Modified global stiffness matrix K after applying boundary conditions:"
+        )
+        for row in global_stiffness_matrix:
+            print(row)
+
+        print("\n- Global force vector F after applying boundary conditions:")
+        print(global_force_vector)
+
+        # - Solve for the nodal displacements
+        nodal_displacements = np.linalg.solve(
+            global_stiffness_matrix, global_force_vector
+        )
+        print("\n- Nodal displacements U:")
+        print(nodal_displacements)
+
+        return original_global_stiffness_matrix, nodal_displacements

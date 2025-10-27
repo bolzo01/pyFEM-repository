@@ -3,8 +3,8 @@
 Module defining the Mesh class for finite element analysis.
 
 Created: 2024/10/13 19:05:39
-Last modified: 2025/10/22 15:49:13
-Author: Angelo Simone (angelo.simone@unipd.it)
+Last modified: 2025/10/27 10:51:07
+Author: Francesco Bolzonella (francesco.bolzonella.1@studentiunipd.it)
 """
 
 

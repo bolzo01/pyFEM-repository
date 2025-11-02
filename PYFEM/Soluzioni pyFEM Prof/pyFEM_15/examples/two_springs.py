@@ -3,7 +3,7 @@
 Solve a series combination of two 1D springs.
 
 Created: 2025/08/02 17:32:52
-Last modified: 2025/10/18 17:15:37
+Last modified: 2025/10/29 11:05:28
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 

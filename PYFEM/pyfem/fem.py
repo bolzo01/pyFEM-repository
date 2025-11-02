@@ -3,8 +3,8 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/10/13 11:10:31
-Author: Angelo Simone (angelo.simone@unipd.it)
+Last modified: 2025/11/02 13:26:28
+Author: Francesco Bolzonella (francesco.bolzonella.1@studenti,unipd.it)
 """
 
 import numpy as np
@@ -101,55 +101,3 @@ def apply_prescribed_displacements(
         global_force_vector[int(dof)] = 0.0
 
     return None
-
-
-def compute_strain_energy_local(
-    mesh: Mesh,
-    materials: Materials,
-    nodal_displacements: np.ndarray,
-) -> None:
-    """
-    Computes the total strain energy by summing the strain energy of each element.
-
-    Returns:
-        None.
-    """
-
-    num_elements = mesh.num_elements
-    element_connectivity = mesh.element_connectivity
-
-    total_strain_energy = 0.0
-    for element_index in range(num_elements):
-        label = mesh.element_material[element_index]
-        mat = materials[label]
-        k_spring = float(param(mat, "k", float))
-        node1, node2 = element_connectivity[element_index]
-        u1 = nodal_displacements[node1]
-        u2 = nodal_displacements[node2]
-        delta = u2 - u1
-        strain_energy = 0.5 * k_spring * delta**2
-        total_strain_energy += strain_energy
-        print(f"\n- Strain energy in element {element_index}: {strain_energy}")
-    print(
-        f"\n- Total strain energy in the system (from local computation): {total_strain_energy}"
-    )
-
-
-def compute_strain_energy_global(
-    original_global_stiffness_matrix: np.ndarray,
-    nodal_displacements: np.ndarray,
-) -> None:
-    """
-    Computes the total strain energy using the global solution (U = 0.5 * u^T * K * u).
-
-    Returns:
-        None.
-    """
-
-    K = original_global_stiffness_matrix
-    u = nodal_displacements
-    total_strain_energy = 0.5 * (u.T @ (K @ u))
-
-    print(
-        f"\n- Total strain energy in the system (from global computation): {total_strain_energy}"
-    )

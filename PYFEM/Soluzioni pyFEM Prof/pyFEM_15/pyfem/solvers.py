@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/10/18 17:30:51
+Last modified: 2025/11/02 12:34:18
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 

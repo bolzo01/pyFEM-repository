@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/26/10 18:14:50
-Last modified: 2025/10/27 11:48:27
+Last modified: 2025/11/02 13:17:22
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -38,60 +38,72 @@ class LinearStaticSolver:
         self.predescribed_displacements = predescribed_displacements
         self.dofs_per_node = dofs_per_node
 
-    def solve(self) -> tuple[np.ndarray, np.ndarray]:
-        """Solves the linear system of equations KU=F.
-
-        Returns:
-        Solution array and global stiffness matrix before applying boundary conditions.
-        """
-
-        # - Initialize arrays
-
-        # -- Compute total number of DOFs
+        # Initialize global matrices and vectors as instance attributes
         total_dofs = self.dofs_per_node * self.mesh.num_nodes
+        self.global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
+        self.original_global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
+        self.global_force_vector = np.zeros(total_dofs)
 
-        # -- Initialize the global stiffness matrix as a square matrix of zeros
-        global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
+        # Will be computed by solve()
+        self.nodal_displacements: np.ndarray
 
-        # -- Initialize the global force vector with zeros
-        global_force_vector = np.zeros(total_dofs)
+    def assemble_global_matrix(self) -> None:
+        """Constructs the system of equations KU=F."""
 
-        # - Assemble the global stiffness matrix
+        # Assemble the global stiffness matrix
         assemble_global_stiffness_matrix(
-            self.mesh, self.materials, global_stiffness_matrix
+            self.mesh, self.materials, self.global_stiffness_matrix
         )
         print("\n- Global stiffness matrix K:")
-        for row in global_stiffness_matrix:
+        for row in self.global_stiffness_matrix:
             print(row)
 
-        # - Save a copy of the original global stiffness matrix before applying boundary conditions
-        original_global_stiffness_matrix = global_stiffness_matrix.copy()
+        # Save a copy of the original global stiffness matrix before applying boundary conditions
+        self.original_global_stiffness_matrix = self.global_stiffness_matrix.copy()
+
+        return None
+
+    def apply_boundary_conditions(self) -> None:
+        """Applies Neumann and Dirichlet boundary conditions."""
+
+        # Compute total number of DOFs
+        total_dofs = self.dofs_per_node * self.mesh.num_nodes
 
         # - Boundary conditions: Apply forces
-        apply_nodal_forces(self.applied_forces, global_force_vector)
+        apply_nodal_forces(self.applied_forces, self.global_force_vector)
 
         # - Boundary conditions: Constrain displacements
         apply_prescribed_displacements(
             self.predescribed_displacements,
-            global_stiffness_matrix,
-            global_force_vector,
+            self.global_stiffness_matrix,
+            self.global_force_vector,
             total_dofs,
         )
 
         print(
             "\n- Modified global stiffness matrix K after applying boundary conditions:"
         )
-        for row in global_stiffness_matrix:
+        for row in self.global_stiffness_matrix:
             print(row)
 
         print("\n- Global force vector F after applying boundary conditions:")
-        print(global_force_vector)
+        print(self.global_force_vector)
+
+        return None
+
+    def solve(self) -> tuple[np.ndarray, np.ndarray]:
+        """Solves the linear system of equations KU=F.
+
+        Returns:
+            Solution array and global stiffness matrix before applying boundary conditions.
+        """
 
         # - Solve for the nodal displacements
-        nodal_displacements = np.linalg.solve(
-            global_stiffness_matrix, global_force_vector
+        self.nodal_displacements = np.linalg.solve(
+            self.global_stiffness_matrix,
+            self.global_force_vector,
         )
         print("\n- Nodal displacements U:")
-        print(nodal_displacements)
+        print(self.nodal_displacements)
 
-        return original_global_stiffness_matrix, nodal_displacements
+        return self.original_global_stiffness_matrix, self.nodal_displacements

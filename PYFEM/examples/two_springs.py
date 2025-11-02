@@ -3,7 +3,7 @@
 Solve a series combination of two 1D springs.
 
 Created: 2025/08/02 17:32:52
-Last modified: 2025/10/27 11:41:16
+Last modified: 2025/11/02 13:36:48
 Author: Francesco Bolzonella (francesco.bolzonella.1@studentiunipd.it)
 """
 
@@ -79,18 +79,28 @@ def main() -> None:
         dofs_per_node,
     )
 
+    # Assemble the global stiffness matrix
+    solver.assemble_global_matrix()
+
+    # Apply boundary conditions
+    solver.apply_boundary_conditions()
+
     # Solve KU=F for the displacement vector
     nodal_displacements, original_global_stiffness_matrix = solver.solve()
 
     # Postprocessing: Calculate strain energy for each spring and for system of springs
 
-    # - Compute strain energy at element level
-    pyfem.compute_strain_energy_local(mesh, materials, nodal_displacements)
-
-    # - Compute strain energy at system level
-    pyfem.compute_strain_energy_global(
-        original_global_stiffness_matrix, nodal_displacements
+    # - Instantiate the postprocessor class
+    postprocessor = pyfem.PostProcessor(
+        mesh,
+        materials,
+        original_global_stiffness_matrix,
+        nodal_displacements,
     )
+
+    # - Compute strain energy at element and system levels
+    postprocessor.compute_strain_energy_local()
+    postprocessor.compute_strain_energy_global()
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 Material registry.
 
 Created: 2025/09/04 11:52:21
-Last modified: 2025/10/13 10:17:36
+Last modified: 2025/11/02 19:19:17
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -136,6 +136,7 @@ def make_materials(pairs) -> dict[str, Material]:
 
 REQUIRED_PARAMS: dict[str, set[str]] = {
     "spring_1D": {"k"},
+    "bar_1D": {"E", "A"},
     # "plane_strain": {"E", "nu"},
 }
 

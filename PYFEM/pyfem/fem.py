@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/02 13:26:28
+Last modified: 2025/11/02 19:45:49
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti,unipd.it)
 """
 
@@ -36,9 +36,33 @@ def assemble_global_stiffness_matrix(
         # Generate the local stiffness matrix for a one-dimensional spring element
         label = mesh.element_material[element_index]
         mat = materials[label]
-        k_e = param(mat, "k", float)
-        print(f"\n-- Element {element_index}, k = {k_e}")
-        local_stiffness_matrix: np.ndarray = np.array([[k_e, -k_e], [-k_e, k_e]])
+
+        # Generate local stiffness matrix based on element type
+        if mat.kind == "spring_1D":
+            k_e = param(mat, "k", float)
+
+            print(f"\n-- Element {element_index}, k = {k_e}")
+            local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
+
+        elif mat.kind == "bar_1D":
+            E = param(mat, "E", float)
+            A = param(mat, "A", float)
+
+            # Get element nodes and compute length
+            element_nodes = element_connectivity[element_index]
+            node1, node2 = element_nodes
+            x1 = mesh.points[node1]
+            x2 = mesh.points[node2]
+            L = x2 - x1
+
+            # Bar stiffness matrix
+            k_e = (E * A) / L
+            print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
+            local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
+
+        else:
+            raise ValueError(f"Unknown element kind: {mat.kind}")
+
         print("   Local K:\n  ", local_stiffness_matrix)
 
         # Map local degrees of freedom to global degrees of freedom for an element

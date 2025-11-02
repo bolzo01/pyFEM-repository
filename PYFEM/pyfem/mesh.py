@@ -3,9 +3,11 @@
 Module defining the Mesh class for finite element analysis.
 
 Created: 2024/10/13 19:05:39
-Last modified: 2025/10/27 10:51:07
+Last modified: 2025/11/02 18:37:52
 Author: Francesco Bolzonella (francesco.bolzonella.1@studentiunipd.it)
 """
+
+import numpy as np
 
 
 class Mesh:
@@ -18,12 +20,16 @@ class Mesh:
     def __init__(
         self,
         num_nodes: int,
+        points: np.ndarray,
         num_elements: int,
         element_connectivity: list[list[int]],
         element_material: list[str],
     ):
         # number of nodes
         self.num_nodes = num_nodes
+
+        # number of points
+        self.points = points
 
         # number of elements
         self.num_elements = num_elements

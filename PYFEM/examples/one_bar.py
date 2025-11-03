@@ -3,7 +3,7 @@
 Solve a series combination of two 1D springs.
 
 Created: 2025/08/02 17:32:52
-Last modified: 2025/11/02 22:55:11
+Last modified: 2025/11/03 11:57:57
 Author: Francesco Bolzonella (francesco.bolzonella.1@studentiunipd.it)
 """
 
@@ -58,7 +58,7 @@ def main() -> None:
     )
 
     # Validate mesh and materials
-    pyfem.validate_mesh_and_materials(mesh, materials)
+    pyfem.validate_mesh_and_element_properties(mesh, materials)
 
     # - Define boundary conditions
 

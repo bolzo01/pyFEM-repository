@@ -3,19 +3,28 @@
 Module defining the FEA solvers.
 
 Created: 2025/26/10 18:14:50
-Last modified: 2025/11/02 13:17:22
+Last modified: 2025/11/03 16:08:00
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
+from enum import Enum, auto
+
 import numpy as np
 
+from .element_properties import ElementProperties
 from .fem import (
     apply_nodal_forces,
     apply_prescribed_displacements,
     assemble_global_stiffness_matrix,
 )
-from .materials import Materials
 from .mesh import Mesh
+
+
+class SolverState(Enum):
+    INITIALIZED = auto()
+    ASSEMBLED = auto()
+    BOUNDARY_APPLIED = auto()
+    SOLVED = auto()
 
 
 class LinearStaticSolver:
@@ -27,7 +36,7 @@ class LinearStaticSolver:
     def __init__(
         self,
         mesh: Mesh,
-        materials: Materials,
+        materials: ElementProperties,
         applied_forces: list[tuple[int, float]],
         predescribed_displacements: list[tuple[int, float]],
         dofs_per_node: int,
@@ -37,6 +46,7 @@ class LinearStaticSolver:
         self.applied_forces = applied_forces
         self.predescribed_displacements = predescribed_displacements
         self.dofs_per_node = dofs_per_node
+        self.state = SolverState.INITIALIZED
 
         # Initialize global matrices and vectors as instance attributes
         total_dofs = self.dofs_per_node * self.mesh.num_nodes
@@ -47,8 +57,15 @@ class LinearStaticSolver:
         # Will be computed by solve()
         self.nodal_displacements: np.ndarray
 
+    def _ensure_state(self, expected: SolverState) -> None:
+        if self.state != expected:
+            raise RuntimeError(
+                f"Invalid solver state: expected {expected.name}, got {self.state.name}"
+            )
+
     def assemble_global_matrix(self) -> None:
         """Constructs the system of equations KU=F."""
+        self._ensure_state(SolverState.INITIALIZED)
 
         # Assemble the global stiffness matrix
         assemble_global_stiffness_matrix(
@@ -61,10 +78,13 @@ class LinearStaticSolver:
         # Save a copy of the original global stiffness matrix before applying boundary conditions
         self.original_global_stiffness_matrix = self.global_stiffness_matrix.copy()
 
+        self.state = SolverState.ASSEMBLED
         return None
 
     def apply_boundary_conditions(self) -> None:
         """Applies Neumann and Dirichlet boundary conditions."""
+
+        self._ensure_state(SolverState.ASSEMBLED)
 
         # Compute total number of DOFs
         total_dofs = self.dofs_per_node * self.mesh.num_nodes
@@ -89,6 +109,8 @@ class LinearStaticSolver:
         print("\n- Global force vector F after applying boundary conditions:")
         print(self.global_force_vector)
 
+        self.state = SolverState.BOUNDARY_APPLIED
+
         return None
 
     def solve(self) -> tuple[np.ndarray, np.ndarray]:
@@ -97,6 +119,7 @@ class LinearStaticSolver:
         Returns:
             Solution array and global stiffness matrix before applying boundary conditions.
         """
+        self._ensure_state(SolverState.BOUNDARY_APPLIED)
 
         # - Solve for the nodal displacements
         self.nodal_displacements = np.linalg.solve(
@@ -105,5 +128,7 @@ class LinearStaticSolver:
         )
         print("\n- Nodal displacements U:")
         print(self.nodal_displacements)
+
+        self.state = SolverState.SOLVED
 
         return self.original_global_stiffness_matrix, self.nodal_displacements

@@ -3,13 +3,13 @@
 Module defining the PostProcessor class.
 
 Created: 2025/11/02 13:07:50
-Last modified: 2025/11/02 19:09:23
+Last modified: 2025/11/03 15:26:12
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
 import numpy as np
 
-from .materials import Materials, param
+from .element_properties import ElementProperties, param
 from .mesh import Mesh
 
 
@@ -22,12 +22,12 @@ class PostProcessor:
     def __init__(
         self,
         mesh: Mesh,
-        materials: Materials,
+        element_properties: ElementProperties,
         original_global_stiffness_matrix: np.ndarray,
         nodal_displacements: np.ndarray,
     ):
         self.mesh = mesh
-        self.materials = materials
+        self.element_properties = element_properties
         self.original_global_stiffness_matrix = original_global_stiffness_matrix
         self.nodal_displacements = nodal_displacements
 
@@ -44,9 +44,9 @@ class PostProcessor:
 
         total_strain_energy = 0.0
         for element_index in range(num_elements):
-            label = self.mesh.element_material[element_index]
-            mat = self.materials[label]
-            k_spring = float(param(mat, "k", float))
+            label = self.mesh.element_property_labels[element_index]
+            elem_prop = self.element_properties[label]
+            k_spring = float(param(elem_prop, "k", float))
             node1, node2 = element_connectivity[element_index]
             u1 = self.nodal_displacements[node1]
             u2 = self.nodal_displacements[node2]

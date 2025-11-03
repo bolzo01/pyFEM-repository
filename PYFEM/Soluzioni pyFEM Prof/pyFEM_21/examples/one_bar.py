@@ -1,0 +1,117 @@
+#!/usr/bin/env python
+"""
+Solve a bar in tension.
+
+Created: 2025/10/18 18:18:18
+Last modified: 2025/10/27 11:05:53
+Author: Angelo Simone (angelo.simone@unipd.it)
+"""
+
+import numpy as np
+
+import pyfem
+
+
+def main() -> None:
+    # PREPROCESSING
+
+    # 1. Geometry and discretization
+
+    # Problem parameters
+    bar_length = 12.0
+    num_nodes = 2
+    num_elements = 1
+
+    # Nodal coordinates
+    points = np.array([0.0, bar_length])
+
+    # Element connectivity (which nodes belong to each element)
+    element_connectivity = [
+        [0, 1],
+    ]
+
+    # 2. Element properties
+
+    # Define element properties registry
+    element_properties = pyfem.make_element_properties(
+        [
+            ("bar", ("bar_1D", {"E": 23.2, "A": 7.0})),
+        ]
+    )
+
+    # Assign properties to elements
+    element_property_labels = ["bar"]
+
+    # 3. Mesh
+
+    # Create mesh
+    mesh = pyfem.Mesh(
+        num_nodes=num_nodes,
+        points=points,
+        num_elements=num_elements,
+        element_connectivity=element_connectivity,
+        element_property_labels=element_property_labels,
+    )
+
+    # Validate mesh and element properties
+    pyfem.validate_mesh_and_element_properties(mesh, element_properties)
+
+    # 4. DOF Space Setup
+
+    # Create DOF space and activate the displacement DOF
+    dof_space = pyfem.DOFSpace()
+    dof_space.activate_dof_types(pyfem.DOFType.U_X)
+
+    # Assign DOFs to all nodes (each node gets one DOF: U_X)
+    dof_space.assign_dofs_to_all_nodes(mesh.num_nodes)
+
+    print(f"\n- DOF Space: {dof_space}")
+
+    # 5. Boundary conditions
+
+    # Dirichlet boundary conditions (prescribed displacements)
+    prescribed_displacements = [
+        (dof_space.get_global_dof(0, pyfem.DOFType.U_X), 0.0),
+    ]
+
+    # Neumann boundary conditions (applied forces)
+    applied_forces = [
+        (dof_space.get_global_dof(1, pyfem.DOFType.U_X), 10.0),
+    ]
+
+    # PROCESSING: Solve FEA problem
+
+    # Create solver
+    solver = pyfem.LinearStaticSolver(
+        mesh,
+        element_properties,
+        applied_forces,
+        prescribed_displacements,
+        dof_space,
+    )
+
+    # Assemble the global stiffness matrix
+    solver.assemble_global_matrix()
+
+    # Apply boundary conditions
+    solver.apply_boundary_conditions()
+
+    # Solve for nodal displacements
+    nodal_displacements, original_global_stiffness_matrix = solver.solve()
+
+    # POSTPROCESSING: Compute derived quantities
+
+    # Create postprocessor
+    postprocessor = pyfem.PostProcessor(
+        mesh,
+        element_properties,
+        original_global_stiffness_matrix,
+        nodal_displacements,
+    )
+
+    # Compute strain energy
+    postprocessor.compute_strain_energy_global()
+
+
+if __name__ == "__main__":
+    main()

@@ -16,7 +16,7 @@ __all__ = [
     "compute_strain_energy_global",
     "compute_strain_energy_local",
     "make_materials",
-    "validate_mesh_and_materials",
+    "validate_mesh_and_element_properties",
     "solve_linear_static",
     "Mesh",
 ]

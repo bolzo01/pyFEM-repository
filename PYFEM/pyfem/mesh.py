@@ -3,7 +3,7 @@
 Module defining the Mesh class for finite element analysis.
 
 Created: 2024/10/13 19:05:39
-Last modified: 2025/11/02 18:37:52
+Last modified: 2025/11/03 12:13:06
 Author: Francesco Bolzonella (francesco.bolzonella.1@studentiunipd.it)
 """
 
@@ -23,7 +23,7 @@ class Mesh:
         points: np.ndarray,
         num_elements: int,
         element_connectivity: list[list[int]],
-        element_material: list[str],
+        element_property_labels: list[str],
     ):
         # number of nodes
         self.num_nodes = num_nodes
@@ -38,4 +38,4 @@ class Mesh:
         self.element_connectivity = element_connectivity
 
         # element material
-        self.element_material = element_material
+        self.element_property_labels = element_property_labels

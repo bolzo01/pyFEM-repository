@@ -3,19 +3,19 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/02 19:45:49
+Last modified: 2025/11/03 12:24:03
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti,unipd.it)
 """
 
 import numpy as np
 
-from .materials import Materials, param
+from .element_properties import ElementProperties, param
 from .mesh import Mesh
 
 
 def assemble_global_stiffness_matrix(
     mesh: Mesh,
-    materials: Materials,
+    element_properties: ElementProperties,
     global_stiffness_matrix: np.ndarray,
 ) -> None:
     """
@@ -34,19 +34,19 @@ def assemble_global_stiffness_matrix(
     print("\n- Assembling local stiffness matrix into global stiffness matrix")
     for element_index in range(num_elements):
         # Generate the local stiffness matrix for a one-dimensional spring element
-        label = mesh.element_material[element_index]
-        mat = materials[label]
+        label = mesh.element_property_labels[element_index]
+        elem_prop = element_properties[label]
 
         # Generate local stiffness matrix based on element type
-        if mat.kind == "spring_1D":
-            k_e = param(mat, "k", float)
+        if elem_prop.kind == "spring_1D":
+            k_e = param(elem_prop, "k", float)
 
             print(f"\n-- Element {element_index}, k = {k_e}")
             local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
 
-        elif mat.kind == "bar_1D":
-            E = param(mat, "E", float)
-            A = param(mat, "A", float)
+        elif elem_prop.kind == "bar_1D":
+            E = param(elem_prop, "E", float)
+            A = param(elem_prop, "A", float)
 
             # Get element nodes and compute length
             element_nodes = element_connectivity[element_index]
@@ -61,7 +61,7 @@ def assemble_global_stiffness_matrix(
             local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
 
         else:
-            raise ValueError(f"Unknown element kind: {mat.kind}")
+            raise ValueError(f"Unknown element kind: {elem_prop.kind}")
 
         print("   Local K:\n  ", local_stiffness_matrix)
 

@@ -3,7 +3,7 @@
 Solve a series combination of two 1D springs.
 
 Created: 2025/08/02 17:32:52
-Last modified: 2025/11/03 16:18:39
+Last modified: 2025/11/04 19:04:32
 Author: Francesco Bolzonella (francesco.bolzonella.1@studentiunipd.it)
 """
 
@@ -69,12 +69,11 @@ def main() -> np.ndarray:
     # Dirichlet boundary conditions (prescribed displacements)
     prescribed_displacements = [
         (0, 0.0),
+        (3, 4.0),
     ]
 
     # Neumann boundary conditions (applied forces)
-    applied_forces = [
-        (3, 4.0),
-    ]
+    applied_forces = None
 
     # Processing: Solve FEA problem
 

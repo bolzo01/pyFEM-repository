@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/26/10 18:14:50
-Last modified: 2025/11/03 16:08:00
+Last modified: 2025/11/04 19:06:02
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -36,13 +36,13 @@ class LinearStaticSolver:
     def __init__(
         self,
         mesh: Mesh,
-        materials: ElementProperties,
-        applied_forces: list[tuple[int, float]],
+        element_properties: ElementProperties,
+        applied_forces: list[tuple[int, float]] | None,
         predescribed_displacements: list[tuple[int, float]],
         dofs_per_node: int,
     ):
         self.mesh = mesh
-        self.materials = materials
+        self.element_properties = element_properties
         self.applied_forces = applied_forces
         self.predescribed_displacements = predescribed_displacements
         self.dofs_per_node = dofs_per_node
@@ -69,7 +69,7 @@ class LinearStaticSolver:
 
         # Assemble the global stiffness matrix
         assemble_global_stiffness_matrix(
-            self.mesh, self.materials, self.global_stiffness_matrix
+            self.mesh, self.element_properties, self.global_stiffness_matrix
         )
         print("\n- Global stiffness matrix K:")
         for row in self.global_stiffness_matrix:
@@ -97,7 +97,6 @@ class LinearStaticSolver:
             self.predescribed_displacements,
             self.global_stiffness_matrix,
             self.global_force_vector,
-            total_dofs,
         )
 
         print(

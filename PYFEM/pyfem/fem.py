@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/03 12:24:03
+Last modified: 2025/11/04 19:18:21
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti,unipd.it)
 """
 
@@ -83,7 +83,7 @@ def assemble_global_stiffness_matrix(
 
 
 def apply_nodal_forces(
-    applied_forces: list[tuple[int, float]],
+    applied_forces: list[tuple[int, float]] | None,
     global_force_vector: np.ndarray,
 ) -> None:
     """
@@ -94,6 +94,9 @@ def apply_nodal_forces(
     Returns:
         None.
     """
+    if not applied_forces:
+        # Nothing to apply (handles None or empty list)
+        return
 
     for dof, value in applied_forces:
         global_force_vector[int(dof)] = value
@@ -105,7 +108,6 @@ def apply_prescribed_displacements(
     prescribed_displacements: list[tuple[int, float]],
     global_stiffness_matrix: np.ndarray,
     global_force_vector: np.ndarray,
-    total_dofs: int,
 ) -> None:
     """
     Applies the prescribed displacements by modifying the global stiffness
@@ -117,11 +119,18 @@ def apply_prescribed_displacements(
         None.
     """
 
+    # Step 1: Extract DOF indices and values
+    dof_indices = [int(dof) for dof, _ in prescribed_displacements]
+    values = np.array([value for _, value in prescribed_displacements], dtype=float)
+
+    # Step 2: Modify RHS -> equivalent force adjustment
+    global_force_vector[:] -= global_stiffness_matrix[:, dof_indices] @ values
+
+    # Step 3: Zero out corresponding rows and columns
     for dof, value in prescribed_displacements:
-        for i in range(total_dofs):
-            global_stiffness_matrix[i, int(dof)] = 0.0  # Zero out the column
-            global_stiffness_matrix[int(dof), i] = 0.0  # Zero out the row
+        global_stiffness_matrix[:, int(dof)] = 0.0  # Zero out the column
+        global_stiffness_matrix[int(dof), :] = 0.0  # Zero out the row
         global_stiffness_matrix[int(dof), int(dof)] = 1.0  # Put one in the diagonal
-        global_force_vector[int(dof)] = 0.0
+        global_force_vector[int(dof)] = value  # Enforce displacement value
 
     return None

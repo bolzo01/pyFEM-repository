@@ -3,14 +3,24 @@
 Module defining DOF types and DOF space management.
 
 Created: 2025/10/19 18:19:46
-Last modified: 2025/10/27 11:34:07
+Last modified: 2025/10/29 00:05:41
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 from enum import Enum, unique
+from typing import Protocol
 
 # Type alias for entity keys (tuples of ints and/or strings)
 EntityKey = tuple[int | str, ...]
+
+
+# -----------------------------------------------------------------------------
+# Structural typing interface (Protocol)
+# -----------------------------------------------------------------------------
+class HasDOFTypes(Protocol):
+    """Any object that can provide its associated DOF types."""
+
+    def get_dof_types(self) -> list["DOFType"]: ...
 
 
 # -----------------------------------------------------------------------------
@@ -20,7 +30,7 @@ EntityKey = tuple[int | str, ...]
 class DOFType(Enum):
     """Enumeration of degree of freedom types."""
 
-    # Mechanical
+    # Displacement vector components
     U_X = "u_x"
     U_Y = "u_y"
     U_Z = "u_z"
@@ -71,6 +81,12 @@ class DOFSpace:
             dof_space.activate_dof_types(DOFType.U_X, DOFType.U_Y)
         """
         self.active_dof_types.extend(dof_types)
+
+    # -------------------------------------------------------------------------
+    def activate_dof_types_for_problem(self, problem: HasDOFTypes) -> None:
+        """Activate DOF types based on a problem or any HasDOFTypes object."""
+        dof_types = problem.get_dof_types()
+        self.activate_dof_types(*dof_types)
 
     # -------------------------------------------------------------------------
     def assign_dofs_to_node(
@@ -150,10 +166,3 @@ class DOFSpace:
     def total_dofs(self) -> int:
         """Total number of DOFs in the system."""
         return self._next_global_dof
-
-    # -------------------------------------------------------------------------
-    def __repr__(self) -> str:
-        return (
-            f"DOFSpace(active_types={[dt.value for dt in self.active_dof_types]}, "
-            f"total_dofs={self.total_dofs})"
-        )

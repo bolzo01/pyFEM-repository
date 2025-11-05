@@ -3,8 +3,8 @@
 Solve a series combination of one spring and two bars in tension.
 
 Created: 2025/10/18 22:16:45
-Last modified: 2025/11/05 17:46:01
-Author: Angelo Simone (angelo.simone@unipd.it)
+Last modified: 2025/11/06 00:16:15
+Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
 import numpy as np
@@ -57,6 +57,14 @@ def main() -> np.ndarray:
         element_property_labels=element_property_labels,
     )
 
+    # Define note sets
+    mesh.add_node_set(tag=1, nodes={0}, name="left_end")
+    mesh.add_node_set(tag=2, nodes={3}, name="right_end")
+
+    print("\n- Node sets:")
+    for tag, node_set in mesh.node_sets.items():
+        print(f" {node_set}")
+
     # Validate mesh and element properties
     pyfem.validate_mesh_and_element_properties(mesh, element_properties)
 
@@ -73,14 +81,14 @@ def main() -> np.ndarray:
 
     # 5. Boundary conditions
 
-    # Dirichlet boundary conditions (prescribed displacements)
-    prescribed_displacements = [
-        (dof_space.get_global_dof(0, pyfem.DOFType.U_X), 0.0),
-        (dof_space.get_global_dof(3, pyfem.DOFType.U_X), 4.0),
-    ]
+    bc = pyfem.BoundaryConditions(dof_space, mesh)
 
-    # Neumann boundary conditions (applied forces)
-    applied_forces = None
+    # Dirichlet boundary conditions (prescribed displacements)
+    bc.prescribe_displacement("left_end", pyfem.DOFType.U_X, 0.0)
+    bc.prescribe_displacement("right_end", pyfem.DOFType.U_X, 4.0)
+
+    print(f"\n- Prescribed displacements: {bc.prescribed_displacements}")
+    print(f"- Applied forces: {bc.applied_forces}")
 
     # PROCESSING: Solve FEA problem
 
@@ -88,8 +96,8 @@ def main() -> np.ndarray:
     solver = pyfem.LinearStaticSolver(
         mesh,
         element_properties,
-        applied_forces,
-        prescribed_displacements,
+        bc.applied_forces,
+        bc.prescribed_displacements,
         dof_space,
     )
 

@@ -3,80 +3,92 @@
 Solve a series combination of two 1D springs.
 
 Created: 2025/08/02 17:32:52
-Last modified: 2025/11/03 12:05:52
-Author: Francesco Bolzonella (francesco.bolzonella.1@studentiunipd.it)
+Last modified: 2025/10/27 09:38:22
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
+
+import numpy as np
 
 import pyfem
 
 
-def main() -> None:
-    # Preprocessing
+def main() -> np.ndarray:
+    # PREPROCESSING
 
-    # - Define input data
+    # 1. Geometry and discretization
+
+    # Problem parameters
     num_nodes = 3
-    dofs_per_node = 1
     num_elements = 2
 
-    # - Define discretization
+    # Nodal coordinates
+    points = np.array([0.0, 1.0, 2.0, 3.0])
 
-    # -- Connectivity matrix defining which nodes belong to each element
+    # Element connectivity (which nodes belong to each element)
     element_connectivity = [
         [1, 2],
         [2, 0],
     ]
 
-    # - Define material properties
-    # -- Stiffness properties for each spring element
-    # Materials registry as list of (label, entry) pairs
-    materials = pyfem.make_element_properties(
+    # 2. Element properties
+
+    # Define element properties registry
+    element_properties = pyfem.make_element_properties(
         [
-            (
-                "soft",
-                ("spring_1D", {"k": 1.0}),
-            ),
-            (
-                "stiff",
-                ("spring_1D", {"k": 2.0}),
-            ),
+            ("soft", ("spring_1D", {"k": 1.0})),
+            ("stiff", ("spring_1D", {"k": 2.0})),
         ]
     )
 
-    # Per-element material labels
-    element_material = ["soft", "stiff"]
+    # Assign properties to elements
+    element_property_labels = ["soft", "stiff"]
 
-    # Mesh object
+    # 3. Mesh
+
+    # Create mesh
     mesh = pyfem.Mesh(
         num_nodes=num_nodes,
+        points=points,
         num_elements=num_elements,
         element_connectivity=element_connectivity,
-        element_material=element_material,
+        element_property_labels=element_property_labels,
     )
 
-    # Validate mesh and materials
-    pyfem.validate_mesh_and_element_properties(mesh, materials)
+    # Validate mesh and element properties
+    pyfem.validate_mesh_and_element_properties(mesh, element_properties)
 
-    # - Define boundary conditions
+    # 4. DOF Space Setup
 
-    # -- Prescribed displacements (Dirichlet boundary conditions): [DOF, value]
+    # Create DOF space and activate the displacement DOF
+    dof_space = pyfem.DOFSpace()
+    dof_space.activate_dof_types(pyfem.DOFType.U_X)
+
+    # Assign DOFs to all nodes (each node gets one DOF: U_X)
+    dof_space.assign_dofs_to_all_nodes(mesh.num_nodes)
+
+    print(f"\n- DOF Space: {dof_space}")
+
+    # 5. Boundary conditions
+
+    # Dirichlet boundary conditions (prescribed displacements)
     prescribed_displacements = [
-        (1, 0.0),  # DOF 0 is constrained
+        (dof_space.get_global_dof(1, pyfem.DOFType.U_X), 0.0),
     ]
 
-    # -- Applied forces (Neumann boundary conditions): [DOF, value]
+    # Neumann boundary conditions (applied forces)
     applied_forces = [
-        (0, 10.0),  # DOF 1 has an applied force of 10
+        (dof_space.get_global_dof(0, pyfem.DOFType.U_X), 10.0),
     ]
 
-    # Processing: Calculate the nodal displacements
+    # PROCESSING: Solve FEA problem
 
-    # Instantiate the solver class
+    # Create solver
     solver = pyfem.LinearStaticSolver(
         mesh,
-        materials,
+        element_properties,
         applied_forces,
         prescribed_displacements,
-        dofs_per_node,
+        dof_space,
     )
 
     # Assemble the global stiffness matrix
@@ -85,15 +97,15 @@ def main() -> None:
     # Apply boundary conditions
     solver.apply_boundary_conditions()
 
-    # Solve KU=F for the displacement vector
+    # Solve for nodal displacements
     nodal_displacements, original_global_stiffness_matrix = solver.solve()
 
-    # Postprocessing: Calculate strain energy for each spring and for system of springs
+    # POSTPROCESSING: Compute derived quantities
 
-    # - Instantiate the postprocessor class
+    # Create postprocessor
     postprocessor = pyfem.PostProcessor(
         mesh,
-        materials,
+        element_properties,
         original_global_stiffness_matrix,
         nodal_displacements,
     )
@@ -101,6 +113,8 @@ def main() -> None:
     # - Compute strain energy at element and system levels
     postprocessor.compute_strain_energy_local()
     postprocessor.compute_strain_energy_global()
+
+    return nodal_displacements
 
 
 if __name__ == "__main__":

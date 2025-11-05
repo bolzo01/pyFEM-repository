@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/11/04 18:04:10
+Last modified: 2025/11/05 17:50:12
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -11,6 +11,7 @@ from enum import Enum, auto
 
 import numpy as np
 
+from .dof_types import DOFSpace
 from .element_properties import ElementProperties
 from .fem import (
     apply_nodal_forces,
@@ -39,17 +40,17 @@ class LinearStaticSolver:
         element_properties: ElementProperties,
         applied_forces: list[tuple[int, float]] | None,
         prescribed_displacements: list[tuple[int, float]],
-        dofs_per_node: int,
+        dof_space: DOFSpace,
     ):
         self.mesh = mesh
         self.element_properties = element_properties
         self.applied_forces = applied_forces
         self.prescribed_displacements = prescribed_displacements
-        self.dofs_per_node = dofs_per_node
+        self.dof_space = dof_space
         self.state = SolverState.INITIALIZED
 
         # Initialize global matrices and vectors as instance attributes
-        total_dofs = self.dofs_per_node * self.mesh.num_nodes
+        total_dofs = self.dof_space.total_dofs
         self.global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
         self.original_global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
         self.global_force_vector = np.zeros(total_dofs)

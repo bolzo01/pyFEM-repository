@@ -3,7 +3,7 @@
 Solve a series combination of one spring and two bars in tension.
 
 Created: 2025/10/18 22:16:45
-Last modified: 2025/10/27 01:50:39
+Last modified: 2025/11/05 17:46:01
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -20,7 +20,6 @@ def main() -> np.ndarray:
     # Problem parameters
     L = 1
     num_nodes = 4
-    dofs_per_node = 1
     num_elements = 3
 
     # Nodal coordinates
@@ -61,12 +60,23 @@ def main() -> np.ndarray:
     # Validate mesh and element properties
     pyfem.validate_mesh_and_element_properties(mesh, element_properties)
 
-    # 4. Boundary conditions
+    # 4. DOF Space Setup
+
+    # Create DOF space and activate the displacement DOF
+    dof_space = pyfem.DOFSpace()
+    dof_space.activate_dof_types(pyfem.DOFType.U_X)
+
+    # Assign DOFs to all nodes (each node gets one DOF: U_X)
+    dof_space.assign_dofs_to_all_nodes(mesh.num_nodes)
+
+    print(f"\n- DOF Space: {dof_space}")
+
+    # 5. Boundary conditions
 
     # Dirichlet boundary conditions (prescribed displacements)
     prescribed_displacements = [
-        (0, 0.0),
-        (3, 4.0),
+        (dof_space.get_global_dof(0, pyfem.DOFType.U_X), 0.0),
+        (dof_space.get_global_dof(3, pyfem.DOFType.U_X), 4.0),
     ]
 
     # Neumann boundary conditions (applied forces)
@@ -80,7 +90,7 @@ def main() -> np.ndarray:
         element_properties,
         applied_forces,
         prescribed_displacements,
-        dofs_per_node,
+        dof_space,
     )
 
     # Assemble the global stiffness matrix

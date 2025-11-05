@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """
-Solve a series combination of two 1D springs.
+Solve a series combination of one spring and two bars in tension.
 
-Created: 2025/08/02 17:32:52
-Last modified: 2025/11/04 19:04:32
-Author: Francesco Bolzonella (francesco.bolzonella.1@studentiunipd.it)
+Created: 2025/10/18 22:16:45
+Last modified: 2025/10/27 01:50:39
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np
@@ -23,10 +23,7 @@ def main() -> np.ndarray:
     dofs_per_node = 1
     num_elements = 3
 
-    # - Define discretization
-
     # Nodal coordinates
-
     points = np.array([0.0, L, 2 * L, 3 * L])
 
     # Element connectivity (which nodes belong to each element)
@@ -75,7 +72,7 @@ def main() -> np.ndarray:
     # Neumann boundary conditions (applied forces)
     applied_forces = None
 
-    # Processing: Solve FEA problem
+    # PROCESSING: Solve FEA problem
 
     # Create solver
     solver = pyfem.LinearStaticSolver(
@@ -106,7 +103,6 @@ def main() -> np.ndarray:
     )
 
     # Compute strain energy
-    postprocessor.compute_strain_energy_local()
     postprocessor.compute_strain_energy_global()
 
     return nodal_displacements

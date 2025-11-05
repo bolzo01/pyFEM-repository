@@ -2,9 +2,9 @@
 """
 Module defining the PostProcessor class.
 
-Created: 2025/11/02 13:07:50
-Last modified: 2025/11/03 15:26:12
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Created: 2025/10/18 18:03:29
+Last modified: 2025/10/19 01:04:30
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np

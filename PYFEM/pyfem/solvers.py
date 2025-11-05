@@ -2,9 +2,9 @@
 """
 Module defining the FEA solvers.
 
-Created: 2025/26/10 18:14:50
-Last modified: 2025/11/04 19:06:02
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Created: 2025/10/18 10:24:33
+Last modified: 2025/11/04 18:04:10
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 from enum import Enum, auto
@@ -28,23 +28,23 @@ class SolverState(Enum):
 
 
 class LinearStaticSolver:
-    """class for solving linear static finite element problems.
+    """Solves linear static finite element problems.
 
-    This class provides a strategy for generating the system of linear equations
-    (KU=F) and obtaining nodal displacements."""
+    Assembles and solves the system of equations KU=F.
+    """
 
     def __init__(
         self,
         mesh: Mesh,
         element_properties: ElementProperties,
         applied_forces: list[tuple[int, float]] | None,
-        predescribed_displacements: list[tuple[int, float]],
+        prescribed_displacements: list[tuple[int, float]],
         dofs_per_node: int,
     ):
         self.mesh = mesh
         self.element_properties = element_properties
         self.applied_forces = applied_forces
-        self.predescribed_displacements = predescribed_displacements
+        self.prescribed_displacements = prescribed_displacements
         self.dofs_per_node = dofs_per_node
         self.state = SolverState.INITIALIZED
 
@@ -65,6 +65,7 @@ class LinearStaticSolver:
 
     def assemble_global_matrix(self) -> None:
         """Constructs the system of equations KU=F."""
+
         self._ensure_state(SolverState.INITIALIZED)
 
         # Assemble the global stiffness matrix
@@ -86,15 +87,12 @@ class LinearStaticSolver:
 
         self._ensure_state(SolverState.ASSEMBLED)
 
-        # Compute total number of DOFs
-        total_dofs = self.dofs_per_node * self.mesh.num_nodes
-
-        # - Boundary conditions: Apply forces
+        # Boundary conditions: Apply forces
         apply_nodal_forces(self.applied_forces, self.global_force_vector)
 
-        # - Boundary conditions: Constrain displacements
+        # Boundary conditions: Constrain displacements
         apply_prescribed_displacements(
-            self.predescribed_displacements,
+            self.prescribed_displacements,
             self.global_stiffness_matrix,
             self.global_force_vector,
         )
@@ -120,14 +118,14 @@ class LinearStaticSolver:
         """
         self._ensure_state(SolverState.BOUNDARY_APPLIED)
 
-        # - Solve for the nodal displacements
         self.nodal_displacements = np.linalg.solve(
             self.global_stiffness_matrix,
             self.global_force_vector,
         )
+
         print("\n- Nodal displacements U:")
         print(self.nodal_displacements)
 
         self.state = SolverState.SOLVED
 
-        return self.original_global_stiffness_matrix, self.nodal_displacements
+        return self.nodal_displacements, self.original_global_stiffness_matrix

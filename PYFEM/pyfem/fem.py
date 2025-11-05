@@ -3,8 +3,8 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/04 19:18:21
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti,unipd.it)
+Last modified: 2025/11/04 19:03:44
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np
@@ -91,8 +91,9 @@ def apply_nodal_forces(
 
     This function modifies the global force vector in place.
 
-    Returns:
-        None.
+    Args:
+        applied_forces: List of (dof_index, force_value) pairs.
+        global_force_vector: The global force vector to modify.
     """
     if not applied_forces:
         # Nothing to apply (handles None or empty list)
@@ -110,13 +111,13 @@ def apply_prescribed_displacements(
     global_force_vector: np.ndarray,
 ) -> None:
     """
-    Applies the prescribed displacements by modifying the global stiffness
-    matrix and force vector (Dirichlet boundary conditions).
+    Applies prescribed displacements (Dirichlet BCs) by modifying
+    the global stiffness matrix and force vector in place.
 
-    This function modifies the updated global stiffness matrix and global force vector in place.
-
-    Returns:
-        None.
+    Args:
+        prescribed_displacements: List of (global_dof, value) pairs.
+        global_stiffness_matrix: Global stiffness matrix (modified in place).
+        global_force_vector: Global force vector (modified in place).
     """
 
     # Step 1: Extract DOF indices and values
@@ -128,9 +129,9 @@ def apply_prescribed_displacements(
 
     # Step 3: Zero out corresponding rows and columns
     for dof, value in prescribed_displacements:
-        global_stiffness_matrix[:, int(dof)] = 0.0  # Zero out the column
-        global_stiffness_matrix[int(dof), :] = 0.0  # Zero out the row
-        global_stiffness_matrix[int(dof), int(dof)] = 1.0  # Put one in the diagonal
-        global_force_vector[int(dof)] = value  # Enforce displacement value
+        global_stiffness_matrix[:, dof] = 0.0
+        global_stiffness_matrix[dof, :] = 0.0
+        global_stiffness_matrix[dof, dof] = 1.0
+        global_force_vector[dof] = value  # Enforce displacement value
 
     return None

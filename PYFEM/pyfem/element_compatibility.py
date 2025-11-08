@@ -3,7 +3,7 @@
 Element-problem compatibility registry and validation.
 
 Created: 2025/10/30 01:11:17
-Last modified: 2025/10/30 18:46:21
+Last modified: 2025/11/08 16:20:45
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -18,6 +18,10 @@ ELEMENT_PROBLEM_COMPATIBILITY: dict[str, set[tuple[Physics, Dimension]]] = {
     },
     "bar_1D": {
         (Physics.MECHANICS, Dimension.D1),
+    },
+    # 2D Mechanics Elements
+    "bar_2D": {
+        (Physics.MECHANICS, Dimension.D2),
     },
     # 2D Mechanics Elements
     "tri3": {

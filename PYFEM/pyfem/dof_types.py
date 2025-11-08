@@ -3,7 +3,7 @@
 Module defining DOF types and DOF space management.
 
 Created: 2025/10/19 18:19:46
-Last modified: 2025/10/29 00:05:41
+Last modified: 2025/10/31 15:31:44
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -160,6 +160,26 @@ class DOFSpace:
                 f"Entity {entity_key} does not have DOF type {dof_type.value} assigned"
             )
         return self.dofs[entity_key][dof_type]
+
+    # -------------------------------------------------------------------------
+    def get_dof_mapping(self, nodes: list[int]) -> list[int]:
+        """Generates the global DOF mapping for a given set of nodes and DOF types of an element.
+
+        Arguments:
+            nodes (list[int]): The list of node indices for the element.
+
+        Returns:
+            list[int]: The list of global DOF numbers corresponding to the local DOFs.
+        """
+        dof_mapping = []
+        for node in nodes:
+            for dof_type in self.active_dof_types:
+                global_dof = self.get_global_dof(node, dof_type)
+                if global_dof is not None:
+                    dof_mapping.append(global_dof)
+                else:
+                    raise ValueError(f"DOF {dof_type} at node {node} is not assigned.")
+        return dof_mapping
 
     # -------------------------------------------------------------------------
     @property

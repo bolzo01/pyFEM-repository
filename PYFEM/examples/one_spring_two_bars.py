@@ -3,8 +3,8 @@
 Solve a series combination of one spring and two bars in tension.
 
 Created: 2025/10/18 22:16:45
-Last modified: 2025/11/08 13:09:51
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Last modified: 2025/10/30 15:53:48
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np
@@ -57,15 +57,15 @@ def main() -> np.ndarray:
         element_property_labels=element_property_labels,
     )
 
-    # Define note sets
+    # Define node sets
     mesh.add_node_set(tag=1, nodes={0}, name="left_end")
     mesh.add_node_set(tag=2, nodes={3}, name="right_end")
 
     print("\n- Node sets:")
     for tag, node_set in mesh.node_sets.items():
-        print(f" {node_set}")
+        print(f"  {node_set}")
 
-    # 4. DOF Space Setup
+    # 4. Create Model
 
     problem = pyfem.Problem(
         pyfem.Physics.MECHANICS,

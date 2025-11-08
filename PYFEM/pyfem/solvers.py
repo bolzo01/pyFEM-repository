@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/11/08 13:02:48
+Last modified: 2025/11/08 17:29:49
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -75,7 +75,10 @@ class LinearStaticSolver:
 
         # Assemble the global stiffness matrix
         assemble_global_stiffness_matrix(
-            self.mesh, self.element_properties, self.global_stiffness_matrix
+            self.mesh,
+            self.element_properties,
+            self.global_stiffness_matrix,
+            self.dof_space,
         )
         print("\n- Global stiffness matrix K:")
         for row in self.global_stiffness_matrix:

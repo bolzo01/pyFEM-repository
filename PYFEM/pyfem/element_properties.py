@@ -6,7 +6,7 @@ Defines element types with their constitutive models, material parameters,
 and discretization metadata.
 
 Created: 2025/10/19 00:16:39
-Last modified: 2025/11/05 17:46:32
+Last modified: 2025/11/08 16:17:10
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -138,8 +138,8 @@ def make_element_properties(pairs) -> ElementProperties:
 
 REQUIRED_PARAMS: dict[str, set[str]] = {
     "spring_1D": {"k"},
-    "bar_1D": {"E", "A"},
-    # "beam_1D": {"E", "A", "I"},
+    "bar_2D": {"E", "A"},
+    # "beam_2D": {"E", "A", "I"},
     # "plane_stress": {"E", "nu"},
 }
 
@@ -148,11 +148,11 @@ ALLOWED_META: dict[str, dict[str, set[str]]] = {
     "spring_1D": {
         # No computational metadata needed - analytical stiffness only
     },
-    "bar_1D": {
+    "bar_2D": {
         "interpolation": {"linear", "quadratic", "cubic"},
         "integration": {"analytical", "full", "reduced"},
     },
-    # "beam_1D": {
+    # "beam_2D": {
     #     "interpolation": {"linear", "cubic"},
     #     "integration": {"analytical", "full", "reduced"},
     # },

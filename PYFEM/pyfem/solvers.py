@@ -3,22 +3,20 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/11/05 17:50:12
-Author: Angelo Simone (angelo.simone@unipd.it)
+Last modified: 2025/11/08 13:02:48
+Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
 from enum import Enum, auto
 
 import numpy as np
 
-from .dof_types import DOFSpace
-from .element_properties import ElementProperties
 from .fem import (
     apply_nodal_forces,
     apply_prescribed_displacements,
     assemble_global_stiffness_matrix,
 )
-from .mesh import Mesh
+from .model import Model
 
 
 class SolverState(Enum):
@@ -34,19 +32,25 @@ class LinearStaticSolver:
     Assembles and solves the system of equations KU=F.
     """
 
-    def __init__(
-        self,
-        mesh: Mesh,
-        element_properties: ElementProperties,
-        applied_forces: list[tuple[int, float]] | None,
-        prescribed_displacements: list[tuple[int, float]],
-        dof_space: DOFSpace,
-    ):
-        self.mesh = mesh
-        self.element_properties = element_properties
-        self.applied_forces = applied_forces
-        self.prescribed_displacements = prescribed_displacements
-        self.dof_space = dof_space
+    def __init__(self, model: Model):
+        """Initialize solver from a Model.
+
+        Args:
+            model: Model object containing mesh, element properties, BCs, and DOF space
+
+        Example:
+            problem = Problem(Physics.MECHANICS, Dimension.D1)
+            model = Model(mesh, problem)
+            model.set_element_properties(element_properties)
+            model.boundary_conditions.prescribe_displacement(...)
+
+            solver = LinearStaticSolver(model)
+        """
+        self.mesh = model.mesh
+        self.element_properties = model.element_properties
+        self.applied_forces = model.bc.applied_forces
+        self.prescribed_displacements = model.bc.prescribed_displacements
+        self.dof_space = model.dof_space
         self.state = SolverState.INITIALIZED
 
         # Initialize global matrices and vectors as instance attributes

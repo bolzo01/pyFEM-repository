@@ -3,7 +3,7 @@
 Solve a series combination of one spring and two bars in tension.
 
 Created: 2025/10/18 22:16:45
-Last modified: 2025/11/06 00:16:15
+Last modified: 2025/11/08 13:03:19
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -70,36 +70,28 @@ def main() -> np.ndarray:
 
     # 4. DOF Space Setup
 
-    # Create DOF space and activate the displacement DOF
-    dof_space = pyfem.DOFSpace()
-    dof_space.activate_dof_types(pyfem.DOFType.U_X)
+    problem = pyfem.Problem(
+        pyfem.Physics.MECHANICS,
+        pyfem.Dimension.D1,
+    )
 
-    # Assign DOFs to all nodes (each node gets one DOF: U_X)
-    dof_space.assign_dofs_to_all_nodes(mesh.num_nodes)
-
-    print(f"\n- DOF Space: {dof_space}")
+    model = pyfem.Model(mesh, problem)
+    model.set_element_properties(element_properties)
+    print(model)
 
     # 5. Boundary conditions
 
-    bc = pyfem.BoundaryConditions(dof_space, mesh)
-
     # Dirichlet boundary conditions (prescribed displacements)
-    bc.prescribe_displacement("left_end", pyfem.DOFType.U_X, 0.0)
-    bc.prescribe_displacement("right_end", pyfem.DOFType.U_X, 4.0)
+    model.bc.prescribe_displacement("left_end", pyfem.DOFType.U_X, 0.0)
+    model.bc.prescribe_displacement("right_end", pyfem.DOFType.U_X, 4.0)
 
-    print(f"\n- Prescribed displacements: {bc.prescribed_displacements}")
-    print(f"- Applied forces: {bc.applied_forces}")
+    print(f"\n- Prescribed displacements: {model.bc.prescribed_displacements}")
+    print(f"- Applied forces: {model.bc.applied_forces}")
 
     # PROCESSING: Solve FEA problem
 
-    # Create solver
-    solver = pyfem.LinearStaticSolver(
-        mesh,
-        element_properties,
-        bc.applied_forces,
-        bc.prescribed_displacements,
-        dof_space,
-    )
+    # Create solver from model
+    solver = pyfem.LinearStaticSolver(model)
 
     # Assemble the global stiffness matrix
     solver.assemble_global_matrix()
@@ -114,8 +106,8 @@ def main() -> np.ndarray:
 
     # Create postprocessor
     postprocessor = pyfem.PostProcessor(
-        mesh,
-        element_properties,
+        model.mesh,
+        model.element_properties,
         original_global_stiffness_matrix,
         nodal_displacements,
     )

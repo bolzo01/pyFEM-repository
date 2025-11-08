@@ -5,6 +5,7 @@ from .element_properties import (
     validate_mesh_and_element_properties,
 )
 from .mesh import Mesh
+from .model import Model
 from .post_processor import PostProcessor
 from .problem import Dimension, Physics, Problem
 from .setup_helpers import setup_dof_space_for_problem
@@ -18,6 +19,7 @@ __all__ = [
     "compute_strain_energy_local",
     "make_element_properties",
     "validate_mesh_and_element_properties",
+    "Model",
     "solve_linear_static",
     "Mesh",
     "PostProcessor",

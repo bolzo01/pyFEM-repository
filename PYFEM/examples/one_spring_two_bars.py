@@ -3,7 +3,7 @@
 Solve a series combination of one spring and two bars in tension.
 
 Created: 2025/10/18 22:16:45
-Last modified: 2025/11/08 13:03:19
+Last modified: 2025/11/08 13:09:51
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -64,9 +64,6 @@ def main() -> np.ndarray:
     print("\n- Node sets:")
     for tag, node_set in mesh.node_sets.items():
         print(f" {node_set}")
-
-    # Validate mesh and element properties
-    pyfem.validate_mesh_and_element_properties(mesh, element_properties)
 
     # 4. DOF Space Setup
 

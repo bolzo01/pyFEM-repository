@@ -3,15 +3,22 @@
 Module defining the Model class for finite element analysis.
 
 Created: 2025/10/28 01:25:31
-Last modified: 2025/11/08 12:27:24
-Author: Francesco Bolzonella (francesco.bolzonella@studenti.unipd.it)
+Last modified: 2025/10/30 18:37:10
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 from .boundary_conditions import BoundaryConditions
-from .element_properties import ElementProperties
+from .element_compatibility import validate_element_problem_compatibility
+from .element_properties import ElementProperties, validate_mesh_and_element_properties
 from .mesh import Mesh
 from .problem import Problem
 from .setup_helpers import setup_dof_space_for_problem
+
+
+class ModelValidationError(Exception):
+    """Raised when model validation fails."""
+
+    pass
 
 
 class Model:
@@ -60,8 +67,15 @@ class Model:
     def set_element_properties(self, element_properties: ElementProperties) -> None:
         """Set element properties for the model.
 
+        This method performs comprehensive validation:
+        1. Validates mesh and element properties compatibility
+        2. Validates element-problem compatibility
+
         Args:
             element_properties: Dictionary of element property definitions
+
+        Raises:
+            ModelValidationError: If validation fails
 
         Example:
             props = make_element_properties([
@@ -70,6 +84,34 @@ class Model:
             model.set_element_properties(props)
         """
         self.element_properties = element_properties
+
+        # Validation 1: Mesh and element properties
+        try:
+            validate_mesh_and_element_properties(self.mesh, self.element_properties)
+        except Exception as e:
+            raise ModelValidationError(
+                f"Mesh and element properties validation failed: {e}"
+            ) from e
+
+        # Validation 2: Element-problem compatibility
+        # Extract unique element kinds from the properties
+        element_kinds = set()
+        for label in self.mesh.element_property_labels:
+            if label in self.element_properties:
+                elem_prop = self.element_properties[label]
+                element_kinds.add(elem_prop.kind)
+
+        # Validate compatibility
+        incompatible = validate_element_problem_compatibility(
+            list(element_kinds), self.problem
+        )
+
+        if incompatible:
+            raise ModelValidationError(
+                f"Element(s) {incompatible} are not compatible with problem "
+                f"{self.problem.physics.name} ({self.problem.dimension.value}D). "
+                f"Cannot use these elements in this problem configuration."
+            )
 
     def __str__(self) -> str:
         """Return a concise, human-readable summary of the model."""

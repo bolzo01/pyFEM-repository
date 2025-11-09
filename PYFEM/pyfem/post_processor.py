@@ -3,11 +3,16 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2025/11/08 12:31:35
+Last modified: 2025/11/01 15:55:12
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
+import os
+
+import matplotlib.axes
+import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.lines import Line2D
 
 from .element_properties import ElementProperties, param
 from .mesh import Mesh
@@ -25,11 +30,13 @@ class PostProcessor:
         element_properties: ElementProperties,
         original_global_stiffness_matrix: np.ndarray,
         nodal_displacements: np.ndarray,
+        magnification_factor: float = 0.0,
     ):
         self.mesh = mesh
         self.element_properties = element_properties
         self.original_global_stiffness_matrix = original_global_stiffness_matrix
         self.nodal_displacements = nodal_displacements
+        self.magnification = magnification_factor
 
     def compute_strain_energy_local(self) -> None:
         """
@@ -73,3 +80,91 @@ class PostProcessor:
         print(
             f"\n- Total strain energy in the system (from global computation): {total_strain_energy}"
         )
+
+    # -----------------------------------------------------------------------------
+    # TrussPlotter
+    # -----------------------------------------------------------------------------
+    def undeformed_mesh(self) -> None:
+        """TrussPlotter: Plots the undeformed mesh structure."""
+        # Only show the plot if Show_TrussPlot is not set to "0"
+        if os.getenv("Show_TrussPlot", "1") != "0":
+            self._plot_mesh(self.mesh.points, is_deformed=False)
+
+    def deformed_mesh(self) -> None:
+        """TrussPlotter: Plots the deformed mesh structure using the nodal displacements."""
+        if self.nodal_displacements is None:
+            raise ValueError("Displacement field (U) is not provided.")
+        # Only show the plot if Show_TrussPlot is not set to "0"
+        if os.getenv("Show_TrussPlot", "1") != "0":
+            points = self._add_displacement(
+                self.nodal_displacements, self.magnification
+            )
+            self._plot_mesh(points, is_deformed=True)
+
+    def _add_displacement(self, U: np.ndarray, magnification: float) -> np.ndarray:
+        """TrussPlotter: Applies the magnified displacement to each node in the mesh."""
+        # Using broadcasting to reshape and apply magnification
+        return self.mesh.points + U.reshape(-1, 2) * magnification
+
+    def _plot_mesh(self, points: np.ndarray, is_deformed: bool) -> None:
+        """TrussPlotter: Helper function to plot the mesh, either undeformed or deformed."""
+        title = "deformed" if is_deformed else "undeformed"
+        fig, axes = plt.subplots()
+        axes.set_aspect("equal")
+        fig.suptitle(title.capitalize() + " Mesh")
+
+        if is_deformed:
+            # Plot the undeformed mesh in light gray for context
+            self._draw(
+                self.mesh.points,
+                self.mesh.element_connectivity,
+                axes,
+                color="lightgray",
+            )
+            # Plot the deformed mesh on top in red
+            self._draw(points, self.mesh.element_connectivity, axes, color="red")
+        else:
+            # Plot only the undeformed mesh
+            self._draw(points, self.mesh.element_connectivity, axes, color="black")
+
+        self._add_node_label(points, axes)
+        self._add_element_label(points, self.mesh.element_connectivity, axes)
+        plt.tight_layout()
+        plt.show()
+
+    def _draw(
+        self,
+        points: np.ndarray,
+        element_connectivity: list[list[int]] | np.ndarray,
+        axes: matplotlib.axes.Axes,
+        color: str,
+        marker_color: str = "red",
+    ) -> None:
+        """TrussPlotter: Draws nodes and edges for the mesh."""
+        axes.set_xlabel("x")
+        axes.set_ylabel("y")
+
+        # Scatter plot for nodes and lines for elements
+        axes.scatter(points[:, 0], points[:, 1], c=marker_color, alpha=0.3, marker="o")
+        for node1, node2 in element_connectivity:
+            x_coords, y_coords = points[[node1, node2], 0], points[[node1, node2], 1]
+            axes.add_line(Line2D(x_coords, y_coords, linewidth=1.0, color=color))
+
+    def _add_node_label(self, points: np.ndarray, axes: matplotlib.axes.Axes) -> None:
+        """TrussPlotter: Adds labels to each node in the plot."""
+        for idx, (x, y) in enumerate(points):
+            axes.text(x, y, str(idx), color="b", size=10)
+
+    def _add_element_label(
+        self,
+        points: np.ndarray,
+        elements: list[list[int]] | np.ndarray,
+        axes: matplotlib.axes.Axes,
+    ) -> None:
+        """TrussPlotter: Adds labels to each element in the plot."""
+        for idx, (node1, node2) in enumerate(elements):
+            x1, y1 = points[node1]
+            x2, y2 = points[node2]
+            # Position labels slightly off-center between nodes
+            x_mid, y_mid = 0.6 * x1 + 0.4 * x2, 0.6 * y1 + 0.4 * y2
+            axes.text(x_mid, y_mid, str(idx), color="g", size=10)

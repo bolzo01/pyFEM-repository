@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """
-Solve two bar in tension (in 2D).
+A Brown truss with a variable number of bays.
 
-Created: 2025/10/18 18:18:18
-Last modified: 2025/11/09 13:18:05
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Created: 2025/10/31 18:35:08
+Last modified: 2025/11/09 13:20:39
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np
@@ -12,37 +12,60 @@ import numpy as np
 import pyfem
 
 
-def main() -> np.ndarray:
+def brown_truss(bays: int) -> tuple[list[list[int]], np.ndarray]:
+    """Define the mesh (nodal coordinates and connectivity table) for a
+    two-dimensional Brown truss with any number of bays."""
+
+    bay = np.array([[0, 1], [0, 2]])
+    bay_tmp = np.array([[1, 2], [1, 3], [2, 4], [1, 4], [2, 3]])
+    bay = np.vstack((bay, bay_tmp))
+
+    for _ in range(bays - 1):
+        bay_tmp = bay_tmp + 2
+        bay = np.vstack((bay, bay_tmp))
+
+    bay_last = np.zeros((3, 2))
+    bay_last[0, :] = bay_tmp[4, :] + 1
+    bay_last[1, :] = (bay_tmp[4, 1], bay_tmp[4, 1] + 2)
+    bay_last[2, :] = (bay_tmp[4, 1] + 1, bay_tmp[4, 1] + 2)
+
+    connectivity = np.vstack((bay, bay_last)).astype(int)
+
+    x_coords = np.vstack(
+        (
+            np.array([[0]]),
+            np.repeat(np.arange(1, bays + 2), 2).reshape(-1, 1),
+            np.array([[bays + 2]]),
+        )
+    )
+    y_coords = np.vstack(
+        (np.array([[0]]), np.tile([0, 1], bays + 1).reshape(-1, 1), np.array([[0]]))
+    )
+    points = np.hstack((x_coords, y_coords))
+
+    return connectivity.tolist(), points
+
+
+def main(bays: int = 3) -> float:
     # PREPROCESSING
 
     # 1. Geometry and discretization
 
-    # Problem parameters
-    a = (2**0.5) / 2
-    bar_length = (a**2 + a**2) ** 0.5
-    num_nodes = 3
-    num_elements = 2
-
-    # Nodal coordinates
-    points = np.array([[0.0, 0.0], [a, a], [0.0, 2.0 * a]])
-
-    # Element connectivity (which nodes belong to each element)
-    element_connectivity = [
-        [0, 1],
-        [2, 1],
-    ]
+    element_connectivity, points = brown_truss(bays)
+    num_nodes = len(points)
+    num_elements = len(element_connectivity)
 
     # 2. Element properties
 
     # Define element properties registry
     element_properties = pyfem.make_element_properties(
         [
-            ("bar", ("bar_2D", {"E": 3.0, "A": 2.0})),
+            ("bar", ("bar_2D", {"E": 206000.0, "A": 500.0})),
         ]
     )
 
     # Assign properties to elements
-    element_property_labels = ["bar"] * 2
+    element_property_labels = ["bar"] * len(element_connectivity)
 
     # 3. Mesh
 
@@ -71,12 +94,10 @@ def main() -> np.ndarray:
     # Dirichlet boundary conditions (prescribed displacements)
     model.bc.prescribe_displacement(0, pyfem.DOFType.U_X, 0.0)
     model.bc.prescribe_displacement(0, pyfem.DOFType.U_Y, 0.0)
-    model.bc.prescribe_displacement(2, pyfem.DOFType.U_X, 0.0)
-    model.bc.prescribe_displacement(2, pyfem.DOFType.U_Y, 0.0)
+    model.bc.prescribe_displacement(num_nodes - 1, pyfem.DOFType.U_Y, 0.0)
 
     # Neumann boundary conditions (applied forces)
-    model.bc.apply_force(1, pyfem.DOFType.U_X, 1.0)
-    model.bc.apply_force(1, pyfem.DOFType.U_Y, 2.0)
+    model.bc.apply_force(1, pyfem.DOFType.U_Y, -10000.0)
 
     print(f"\n- Prescribed displacements: {model.bc.prescribed_displacements}")
     print(f"- Applied forces: {model.bc.applied_forces}")
@@ -110,10 +131,7 @@ def main() -> np.ndarray:
     postprocessor.undeformed_mesh()
     postprocessor.deformed_mesh()
 
-    # Compute strain energy
-    postprocessor.compute_strain_energy_global()
-
-    return nodal_displacements
+    return float(nodal_displacements[num_nodes - 1])
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/08 17:27:23
+Last modified: 2025/11/09 12:17:08
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -74,15 +74,20 @@ def assemble_global_stiffness_matrix(
 
             L = np.sqrt((P2[0] - P1[0]) ** 2 + (P2[1] - P2[1]) ** 2)
 
+            # Calculate the directional cosines of the bar_2D element
+            # (cosine and sine of angle between local and global axes)
+            directional_cosines = (P2 - P1) / L
+            c, s = directional_cosines
+
             # Bar stiffness matrix
             k_e = (E * A) / L
             print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
             local_stiffness_matrix = k_e * np.array(
                 [
-                    [1.0, 0.0, -1.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0],
-                    [-1.0, 0.0, 1.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0],
+                    [c * c, c * s, -c * c, -c * s],
+                    [c * s, s * s, -c * s, -s * s],
+                    [-c * c, -c * s, c * c, c * s],
+                    [-c * s, -s * s, c * s, s * s],
                 ]
             )
 

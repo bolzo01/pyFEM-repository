@@ -1,31 +1,26 @@
-from .boundary_conditions import BoundaryConditions
-from .dof_types import DOFSpace, DOFType
-from .element_properties import (
-    make_element_properties,
-    validate_mesh_and_element_properties,
+from .dof_types import DOFType
+from .element_compatibility import (
+    get_compatible_problems,
+    is_element_compatible_with_problem,
 )
+from .element_properties import make_element_properties
 from .mesh import Mesh
-from .model import Model
+from .model import Model, ModelValidationError
 from .post_processor import PostProcessor
 from .problem import Dimension, Physics, Problem
-from .setup_helpers import setup_dof_space_for_problem
 from .solvers import LinearStaticSolver
 
 __all__ = [
-    "BoundaryConditions",
-    "DOFSpace",
     "DOFType",
-    "compute_strain_energy_global",
-    "compute_strain_energy_local",
+    "get_compatible_problems",
+    "is_element_compatible_with_problem",
     "make_element_properties",
-    "validate_mesh_and_element_properties",
-    "Model",
-    "solve_linear_static",
     "Mesh",
+    "Model",
+    "ModelValidationError",
     "PostProcessor",
     "Dimension",
     "Physics",
     "Problem",
-    "setup_dof_space_for_problem",
     "LinearStaticSolver",
 ]

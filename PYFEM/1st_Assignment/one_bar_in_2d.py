@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-Solve a bar in tension.
+Solve a bar in tension (in 2D).
 
-Created: 2025/10/18 18:18:18
-Last modified: 2025/10/30 18:52:52
+Created: 2025/10/31 14:34:37
+Last modified: 2025/10/31 15:30:59
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -23,7 +23,7 @@ def main() -> np.ndarray:
     num_elements = 1
 
     # Nodal coordinates
-    points = np.array([0.0, bar_length])
+    points = np.array([[0.0, 0.0], [bar_length, 0.0]])
 
     # Element connectivity (which nodes belong to each element)
     element_connectivity = [
@@ -35,7 +35,7 @@ def main() -> np.ndarray:
     # Define element properties registry
     element_properties = pyfem.make_element_properties(
         [
-            ("bar", ("bar_1D", {"E": 23.2, "A": 7.0})),
+            ("bar", ("bar_2D", {"E": 23.2, "A": 7.0})),
         ]
     )
 
@@ -65,7 +65,7 @@ def main() -> np.ndarray:
 
     problem = pyfem.Problem(
         pyfem.Physics.MECHANICS,
-        pyfem.Dimension.D1,
+        pyfem.Dimension.D2,
     )
 
     model = pyfem.Model(mesh, problem)
@@ -76,6 +76,8 @@ def main() -> np.ndarray:
 
     # Dirichlet boundary conditions (prescribed displacements)
     model.bc.prescribe_displacement("left_end", pyfem.DOFType.U_X, 0.0)
+    model.bc.prescribe_displacement("left_end", pyfem.DOFType.U_Y, 0.0)
+    model.bc.prescribe_displacement("right_end", pyfem.DOFType.U_Y, 0.0)
 
     # Neumann boundary conditions (applied forces)
     model.bc.apply_force("right_end", pyfem.DOFType.U_X, 10.0)

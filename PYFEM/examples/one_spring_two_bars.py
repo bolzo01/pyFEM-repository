@@ -3,7 +3,7 @@
 Solve a series combination of one spring and two bars in tension.
 
 Created: 2025/10/18 22:16:45
-Last modified: 2025/10/30 15:53:48
+Last modified: 2025/11/03 09:16:20
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 

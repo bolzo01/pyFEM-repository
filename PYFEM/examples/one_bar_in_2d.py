@@ -2,9 +2,9 @@
 """
 Solve a bar in tension (in 2D).
 
-Created: 2025/10/18 18:18:18
-Last modified: 2025/11/08 16:14:21
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Created: 2025/10/31 14:34:37
+Last modified: 2025/10/31 15:30:59
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np

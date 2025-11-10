@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """
-Solve two bar in tension (in 2D).
+Two-bar truss - Example 2 in Trusses.pdf.
 
-Created: 2025/10/18 18:18:18
-Last modified: 2025/11/09 13:18:05
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Created: 2025/10/31 14:34:37
+Last modified: 2025/11/06 22:34:19
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np
@@ -18,18 +18,22 @@ def main() -> np.ndarray:
     # 1. Geometry and discretization
 
     # Problem parameters
-    a = (2**0.5) / 2
-    bar_length = (a**2 + a**2) ** 0.5
     num_nodes = 3
     num_elements = 2
 
     # Nodal coordinates
-    points = np.array([[0.0, 0.0], [a, a], [0.0, 2.0 * a]])
+    points = np.array(
+        [
+            [0.0, 0.0],
+            [0.5 * np.sqrt(2), 0.5 * np.sqrt(2)],
+            [0.0, np.sqrt(2)],
+        ]
+    )
 
     # Element connectivity (which nodes belong to each element)
     element_connectivity = [
         [0, 1],
-        [2, 1],
+        [1, 2],
     ]
 
     # 2. Element properties
@@ -78,8 +82,8 @@ def main() -> np.ndarray:
     model.bc.apply_force(1, pyfem.DOFType.U_X, 1.0)
     model.bc.apply_force(1, pyfem.DOFType.U_Y, 2.0)
 
-    print(f"\n- Prescribed displacements: {model.bc.prescribed_displacements}")
-    print(f"- Applied forces: {model.bc.applied_forces}")
+    # print(f"\n- Prescribed displacements: {model.bc.prescribed_displacements}")
+    # print(f"- Applied forces: {model.bc.applied_forces}")
 
     # PROCESSING: Solve FEA problem
 
@@ -93,7 +97,7 @@ def main() -> np.ndarray:
     solver.apply_boundary_conditions()
 
     # Solve for nodal displacements
-    nodal_displacements, original_global_stiffness_matrix = solver.solve()
+    solver.solve()
 
     # POSTPROCESSING: Compute derived quantities
 
@@ -101,19 +105,14 @@ def main() -> np.ndarray:
     postprocessor = pyfem.PostProcessor(
         model.mesh,
         model.element_properties,
-        original_global_stiffness_matrix,
-        nodal_displacements,
-        magnification_factor=1000.0,
+        solver.global_stiffness_matrix,
+        solver.nodal_displacements,
     )
-
-    # Plot truss
-    postprocessor.undeformed_mesh()
-    postprocessor.deformed_mesh()
 
     # Compute strain energy
     postprocessor.compute_strain_energy_global()
 
-    return nodal_displacements
+    return solver.nodal_displacements
 
 
 if __name__ == "__main__":

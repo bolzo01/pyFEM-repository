@@ -13,8 +13,8 @@ and records key performance metrics including:
 - The memory footprint of the dense matrix representation.
 
 Created: 2025/10/29 18:26:04
-Last modified: 2025/11/10 14:11:25
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Last modified: 2025/11/03 09:19:54
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import os

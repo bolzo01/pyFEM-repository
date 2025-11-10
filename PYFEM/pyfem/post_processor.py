@@ -3,7 +3,7 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2025/11/01 15:55:12
+Last modified: 2025/11/06 22:16:17
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -28,13 +28,13 @@ class PostProcessor:
         self,
         mesh: Mesh,
         element_properties: ElementProperties,
-        original_global_stiffness_matrix: np.ndarray,
+        global_stiffness_matrix: np.ndarray,
         nodal_displacements: np.ndarray,
         magnification_factor: float = 0.0,
     ):
         self.mesh = mesh
         self.element_properties = element_properties
-        self.original_global_stiffness_matrix = original_global_stiffness_matrix
+        self.global_stiffness_matrix = global_stiffness_matrix
         self.nodal_displacements = nodal_displacements
         self.magnification = magnification_factor
 
@@ -73,7 +73,7 @@ class PostProcessor:
             None.
         """
 
-        K = self.original_global_stiffness_matrix
+        K = self.global_stiffness_matrix
         u = self.nodal_displacements
         total_strain_energy = 0.5 * (u.T @ (K @ u))
 

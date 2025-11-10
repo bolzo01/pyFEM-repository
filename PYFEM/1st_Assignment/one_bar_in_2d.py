@@ -3,7 +3,7 @@
 Solve a bar in tension (in 2D).
 
 Created: 2025/10/31 14:34:37
-Last modified: 2025/10/31 15:30:59
+Last modified: 2025/11/06 22:30:23
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -82,8 +82,8 @@ def main() -> np.ndarray:
     # Neumann boundary conditions (applied forces)
     model.bc.apply_force("right_end", pyfem.DOFType.U_X, 10.0)
 
-    print(f"\n- Prescribed displacements: {model.bc.prescribed_displacements}")
-    print(f"- Applied forces: {model.bc.applied_forces}")
+    # print(f"\n- Prescribed displacements: {model.bc.prescribed_displacements}")
+    # print(f"- Applied forces: {model.bc.applied_forces}")
 
     # PROCESSING: Solve FEA problem
 
@@ -97,7 +97,7 @@ def main() -> np.ndarray:
     solver.apply_boundary_conditions()
 
     # Solve for nodal displacements
-    nodal_displacements, original_global_stiffness_matrix = solver.solve()
+    solver.solve()
 
     # POSTPROCESSING: Compute derived quantities
 
@@ -105,14 +105,14 @@ def main() -> np.ndarray:
     postprocessor = pyfem.PostProcessor(
         model.mesh,
         model.element_properties,
-        original_global_stiffness_matrix,
-        nodal_displacements,
+        solver.global_stiffness_matrix,
+        solver.nodal_displacements,
     )
 
     # Compute strain energy
     postprocessor.compute_strain_energy_global()
 
-    return nodal_displacements
+    return solver.nodal_displacements
 
 
 if __name__ == "__main__":

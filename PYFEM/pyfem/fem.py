@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/09 13:23:51
+Last modified: 2025/11/10 16:55:27
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -96,8 +96,7 @@ def assemble_global_stiffness_matrix(
 
         # print("   Local K:\n  ", local_stiffness_matrix)
 
-        # Map local degrees of freedom to global degrees of freedom for an element
-        # first determine the element nodes through the element connectivity matrix
+        # Get local to global DOF mapping using DOFSpace
         element_nodes = element_connectivity[element_index]
         dof_mapping = dof_space.get_dof_mapping(element_nodes)
 
@@ -107,60 +106,5 @@ def assemble_global_stiffness_matrix(
                 global_stiffness_matrix[global_i, global_j] += local_stiffness_matrix[
                     i, j
                 ]
-
-    return None
-
-
-def apply_nodal_forces(
-    applied_forces: list[tuple[int, float]] | None,
-    global_force_vector: np.ndarray,
-) -> None:
-    """
-    Applies nodal forces to the global force vector (Neumann boundary conditions).
-
-    This function modifies the global force vector in place.
-
-    Args:
-        applied_forces: List of (dof_index, force_value) pairs.
-        global_force_vector: The global force vector to modify.
-    """
-    if not applied_forces:
-        # Nothing to apply (handles None or empty list)
-        return
-
-    for dof, value in applied_forces:
-        global_force_vector[int(dof)] = value
-
-    return None
-
-
-def apply_prescribed_displacements(
-    prescribed_displacements: list[tuple[int, float]],
-    global_stiffness_matrix: np.ndarray,
-    global_force_vector: np.ndarray,
-) -> None:
-    """
-    Applies prescribed displacements (Dirichlet BCs) by modifying
-    the global stiffness matrix and force vector in place.
-
-    Args:
-        prescribed_displacements: List of (global_dof, value) pairs.
-        global_stiffness_matrix: Global stiffness matrix (modified in place).
-        global_force_vector: Global force vector (modified in place).
-    """
-
-    # Step 1: Extract DOF indices and values
-    dof_indices = [int(dof) for dof, _ in prescribed_displacements]
-    values = np.array([value for _, value in prescribed_displacements], dtype=float)
-
-    # Step 2: Modify RHS -> equivalent force adjustment
-    global_force_vector[:] -= global_stiffness_matrix[:, dof_indices] @ values
-
-    # Step 3: Zero out corresponding rows and columns
-    for dof, value in prescribed_displacements:
-        global_stiffness_matrix[:, dof] = 0.0
-        global_stiffness_matrix[dof, :] = 0.0
-        global_stiffness_matrix[dof, dof] = 1.0
-        global_force_vector[dof] = value  # Enforce displacement value
 
     return None

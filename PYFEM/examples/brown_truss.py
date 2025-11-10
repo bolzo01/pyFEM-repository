@@ -3,7 +3,7 @@
 A Brown truss with a variable number of bays.
 
 Created: 2025/10/31 18:35:08
-Last modified: 2025/11/10 12:24:00
+Last modified: 2025/11/06 22:31:04
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -114,7 +114,7 @@ def main(bays: int = 3) -> tuple[float, int, float, int]:
     solver.apply_boundary_conditions()
 
     # Solve for nodal displacements
-    nodal_displacements, original_global_stiffness_matrix = solver.solve()
+    solver.solve()
 
     # POSTPROCESSING: Compute derived quantities
 
@@ -122,8 +122,8 @@ def main(bays: int = 3) -> tuple[float, int, float, int]:
     postprocessor = pyfem.PostProcessor(
         model.mesh,
         model.element_properties,
-        original_global_stiffness_matrix,
-        nodal_displacements,
+        solver.global_stiffness_matrix,
+        solver.nodal_displacements,
         magnification_factor=1000.0,
     )
 
@@ -132,7 +132,7 @@ def main(bays: int = 3) -> tuple[float, int, float, int]:
     postprocessor.deformed_mesh()
 
     return (
-        float(nodal_displacements[num_nodes - 1]),
+        float(solver.nodal_displacements[num_nodes - 1]),
         solver.dof_space.total_dofs,
         solver.sparsity_percentage,
         solver.matrix_size_bytes,

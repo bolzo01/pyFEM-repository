@@ -3,19 +3,16 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/11/09 13:29:29
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Last modified: 2025/11/06 22:41:59
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
+import time
 from enum import Enum, auto
 
 import numpy as np
 
-from .fem import (
-    apply_nodal_forces,
-    apply_prescribed_displacements,
-    assemble_global_stiffness_matrix,
-)
+from .fem import assemble_global_stiffness_matrix
 from .model import Model
 
 
@@ -56,7 +53,6 @@ class LinearStaticSolver:
         # Initialize global matrices and vectors as instance attributes
         total_dofs = self.dof_space.total_dofs
         self.global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
-        self.original_global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
         self.global_force_vector = np.zeros(total_dofs)
 
         # Will be computed by solve()
@@ -90,54 +86,71 @@ class LinearStaticSolver:
         )
         # print("\n- Global stiffness matrix K:")
         # for row in self.global_stiffness_matrix:
-        # print(row)
-
-        # Save a copy of the original global stiffness matrix before applying boundary conditions
-        self.original_global_stiffness_matrix = self.global_stiffness_matrix.copy()
+        #     print(row)
 
         self.state = SolverState.ASSEMBLED
         return None
 
     def apply_boundary_conditions(self) -> None:
-        """Applies Neumann and Dirichlet boundary conditions."""
+        """Applies Neumann boundary conditions (forces only).
+
+        Dirichlet BCs are handled via static condensation during solve.
+        """
 
         self._ensure_state(SolverState.ASSEMBLED)
 
-        # Boundary conditions: Apply forces
-        apply_nodal_forces(self.applied_forces, self.global_force_vector)
-
-        # Boundary conditions: Constrain displacements
-        apply_prescribed_displacements(
-            self.prescribed_displacements,
-            self.global_stiffness_matrix,
-            self.global_force_vector,
-        )
-
-        # print(
-        #     "\n- Modified global stiffness matrix K after applying boundary conditions:"
-        # )
-        # for row in self.global_stiffness_matrix:
-        #     print(row)
-
-        # print("\n- Global force vector F after applying boundary conditions:")
-        # print(self.global_force_vector)
+        if self.applied_forces:
+            for dof, value in self.applied_forces:
+                self.global_force_vector[int(dof)] = value
 
         self.state = SolverState.BOUNDARY_APPLIED
-
         return None
 
-    def solve(self) -> tuple[np.ndarray, np.ndarray]:
-        """Solves the linear system of equations KU=F.
+    def solve(self) -> None:
+        """Solves the linear system KU=F using static condensation."""
 
-        Returns:
-            Solution array and global stiffness matrix before applying boundary conditions.
-        """
         self._ensure_state(SolverState.BOUNDARY_APPLIED)
 
-        self.nodal_displacements = np.linalg.solve(
-            self.global_stiffness_matrix,
-            self.global_force_vector,
-        )
+        K = self.global_stiffness_matrix
+        F = self.global_force_vector
+
+        # Extract prescribed DOF information
+        if self.prescribed_displacements:
+            prescribed_dofs = np.array(
+                [int(dof) for dof, _ in self.prescribed_displacements], dtype=int
+            )
+            prescribed_vals = np.array(
+                [float(val) for _, val in self.prescribed_displacements], dtype=float
+            )
+        else:
+            prescribed_dofs = np.array([], dtype=int)
+            prescribed_vals = np.array([], dtype=float)
+
+        # Identify free DOFs
+        all_dofs = np.arange(K.shape[0])
+        free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
+
+        # Dense solver with static condensation
+
+        # Partition the system
+        if len(prescribed_dofs) > 0:
+            K_ff = K[np.ix_(free_dofs, free_dofs)]
+            K_fp = K[np.ix_(free_dofs, prescribed_dofs)]
+            F_f = F[free_dofs] - K_fp @ prescribed_vals
+        else:
+            K_ff = K
+            F_f = F[free_dofs]
+
+        # Solve
+        start_time = time.time()
+        U_free = np.linalg.solve(K_ff, F_f)
+        self.solve_time = time.time() - start_time
+
+        # Reconstruct full displacement vector
+        self.nodal_displacements = np.zeros(K.shape[0])
+        self.nodal_displacements[free_dofs] = U_free
+        if len(prescribed_dofs) > 0:
+            self.nodal_displacements[prescribed_dofs] = prescribed_vals
 
         # System size (number of equations/unknowns)
         self.system_size = self.dof_space.total_dofs
@@ -162,13 +175,17 @@ class LinearStaticSolver:
         print(f"{'=' * 70}")
         print(f"  System size (DOFs):           {self.system_size}")
         print(
-            f"  Matrix shape:                 {self.matrix_shape[0]} × {self.matrix_shape[1]}"
+            f"  Matrix shape:                 {self.matrix_shape[0]} x {self.matrix_shape[1]}"
         )
         print(f"  Total matrix entries:         {self.num_matrix_entries:,}")
         print(f"  Non-zero entries:             {self.num_nonzero_entries:,}")
         print(f"  Sparsity (% zeros):           {self.sparsity_percentage:.2f}%")
         print(
             f"  Matrix memory usage:          {self.matrix_size_bytes:,} bytes ({self.matrix_size_bytes / 1024 / 1024:.2f} MiB)"
+        )
+        print(f"  Solution time:                {self.solve_time:.4f} seconds")
+        print(
+            "  Note:                         Statistics for ORIGINAL matrix (before BCs)"
         )
         print(f"{'=' * 70}")
 
@@ -177,4 +194,4 @@ class LinearStaticSolver:
 
         self.state = SolverState.SOLVED
 
-        return self.nodal_displacements, self.original_global_stiffness_matrix
+        return None

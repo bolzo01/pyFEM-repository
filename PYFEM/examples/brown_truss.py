@@ -3,7 +3,7 @@
 A Brown truss with a variable number of bays.
 
 Created: 2025/10/31 18:35:08
-Last modified: 2025/11/09 13:20:39
+Last modified: 2025/11/10 12:24:00
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -46,7 +46,7 @@ def brown_truss(bays: int) -> tuple[list[list[int]], np.ndarray]:
     return connectivity.tolist(), points
 
 
-def main(bays: int = 3) -> float:
+def main(bays: int = 3) -> tuple[float, int, float, int]:
     # PREPROCESSING
 
     # 1. Geometry and discretization
@@ -99,8 +99,8 @@ def main(bays: int = 3) -> float:
     # Neumann boundary conditions (applied forces)
     model.bc.apply_force(1, pyfem.DOFType.U_Y, -10000.0)
 
-    print(f"\n- Prescribed displacements: {model.bc.prescribed_displacements}")
-    print(f"- Applied forces: {model.bc.applied_forces}")
+    # print(f"\n- Prescribed displacements: {model.bc.prescribed_displacements}")
+    # print(f"- Applied forces: {model.bc.applied_forces}")
 
     # PROCESSING: Solve FEA problem
 
@@ -131,7 +131,12 @@ def main(bays: int = 3) -> float:
     postprocessor.undeformed_mesh()
     postprocessor.deformed_mesh()
 
-    return float(nodal_displacements[num_nodes - 1])
+    return (
+        float(nodal_displacements[num_nodes - 1]),
+        solver.dof_space.total_dofs,
+        solver.sparsity_percentage,
+        solver.matrix_size_bytes,
+    )
 
 
 if __name__ == "__main__":

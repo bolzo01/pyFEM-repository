@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/11/08 17:29:49
+Last modified: 2025/11/09 13:29:29
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -62,6 +62,14 @@ class LinearStaticSolver:
         # Will be computed by solve()
         self.nodal_displacements: np.ndarray
 
+        # Performance metrics
+        self.system_size: int = 0
+        self.matrix_shape: tuple[int, int] = (0, 0)
+        self.num_matrix_entries: int = 0
+        self.matrix_size_bytes: int = 0
+        self.num_nonzero_entries: int = 0
+        self.sparsity_percentage: float = 0.0
+
     def _ensure_state(self, expected: SolverState) -> None:
         if self.state != expected:
             raise RuntimeError(
@@ -80,9 +88,9 @@ class LinearStaticSolver:
             self.global_stiffness_matrix,
             self.dof_space,
         )
-        print("\n- Global stiffness matrix K:")
-        for row in self.global_stiffness_matrix:
-            print(row)
+        # print("\n- Global stiffness matrix K:")
+        # for row in self.global_stiffness_matrix:
+        # print(row)
 
         # Save a copy of the original global stiffness matrix before applying boundary conditions
         self.original_global_stiffness_matrix = self.global_stiffness_matrix.copy()
@@ -105,14 +113,14 @@ class LinearStaticSolver:
             self.global_force_vector,
         )
 
-        print(
-            "\n- Modified global stiffness matrix K after applying boundary conditions:"
-        )
-        for row in self.global_stiffness_matrix:
-            print(row)
+        # print(
+        #     "\n- Modified global stiffness matrix K after applying boundary conditions:"
+        # )
+        # for row in self.global_stiffness_matrix:
+        #     print(row)
 
-        print("\n- Global force vector F after applying boundary conditions:")
-        print(self.global_force_vector)
+        # print("\n- Global force vector F after applying boundary conditions:")
+        # print(self.global_force_vector)
 
         self.state = SolverState.BOUNDARY_APPLIED
 
@@ -131,8 +139,41 @@ class LinearStaticSolver:
             self.global_force_vector,
         )
 
-        print("\n- Nodal displacements U:")
-        print(self.nodal_displacements)
+        # System size (number of equations/unknowns)
+        self.system_size = self.dof_space.total_dofs
+
+        # Matrix dimensions (system_size × system_size)
+        self.matrix_shape = self.global_stiffness_matrix.shape
+
+        # Total number of matrix entries
+        self.num_matrix_entries = self.global_stiffness_matrix.size
+
+        # Matrix size in memory (bytes)
+        self.matrix_size_bytes = self.global_stiffness_matrix.nbytes
+
+        # Sparsity statistics
+        self.num_nonzero_entries = int(np.count_nonzero(self.global_stiffness_matrix))
+        self.sparsity_percentage = (
+            1.0 - self.num_nonzero_entries / self.num_matrix_entries
+        ) * 100.0
+
+        print(f"\n{'=' * 70}")
+        print("Solver Statistics")
+        print(f"{'=' * 70}")
+        print(f"  System size (DOFs):           {self.system_size}")
+        print(
+            f"  Matrix shape:                 {self.matrix_shape[0]} × {self.matrix_shape[1]}"
+        )
+        print(f"  Total matrix entries:         {self.num_matrix_entries:,}")
+        print(f"  Non-zero entries:             {self.num_nonzero_entries:,}")
+        print(f"  Sparsity (% zeros):           {self.sparsity_percentage:.2f}%")
+        print(
+            f"  Matrix memory usage:          {self.matrix_size_bytes:,} bytes ({self.matrix_size_bytes / 1024 / 1024:.2f} MiB)"
+        )
+        print(f"{'=' * 70}")
+
+        # print("\n- Nodal displacements U:")
+        # print(self.nodal_displacements)
 
         self.state = SolverState.SOLVED
 

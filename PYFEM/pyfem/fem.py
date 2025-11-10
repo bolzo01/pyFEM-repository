@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/09 12:17:08
+Last modified: 2025/11/09 13:23:51
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -33,7 +33,7 @@ def assemble_global_stiffness_matrix(
     element_connectivity = mesh.element_connectivity
 
     # Assemble the global stiffness matrix
-    print("\n- Assembling local stiffness matrix into global stiffness matrix")
+    # print("\n- Assembling local stiffness matrix into global stiffness matrix")
     for element_index in range(num_elements):
         # Generate the local stiffness matrix for a one-dimensional spring element
         label = mesh.element_property_labels[element_index]
@@ -43,7 +43,7 @@ def assemble_global_stiffness_matrix(
         if elem_prop.kind == "spring_1D":
             k_e = param(elem_prop, "k", float)
 
-            print(f"\n-- Element {element_index}, k = {k_e}")
+            # print(f"\n-- Element {element_index}, k = {k_e}")
             local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
 
         elif elem_prop.kind == "bar_1D":
@@ -59,7 +59,7 @@ def assemble_global_stiffness_matrix(
 
             # Bar stiffness matrix
             k_e = (E * A) / L
-            print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
+            # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
             local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
 
         elif elem_prop.kind == "bar_2D":
@@ -81,7 +81,7 @@ def assemble_global_stiffness_matrix(
 
             # Bar stiffness matrix
             k_e = (E * A) / L
-            print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
+            # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
             local_stiffness_matrix = k_e * np.array(
                 [
                     [c * c, c * s, -c * c, -c * s],
@@ -94,7 +94,7 @@ def assemble_global_stiffness_matrix(
         else:
             raise ValueError(f"Unknown element kind: {elem_prop.kind}")
 
-        print("   Local K:\n  ", local_stiffness_matrix)
+        # print("   Local K:\n  ", local_stiffness_matrix)
 
         # Map local degrees of freedom to global degrees of freedom for an element
         # first determine the element nodes through the element connectivity matrix

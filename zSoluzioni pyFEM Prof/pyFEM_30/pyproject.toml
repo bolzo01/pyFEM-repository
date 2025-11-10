@@ -1,0 +1,8 @@
+[project]
+name = "pyfem"
+version = "0.1.0"
+description = "pyFEM: A Python FEM solver"
+authors = [
+    { name = "Angelo Simone", email = "angelo.simone@unipd.it" }
+]
+

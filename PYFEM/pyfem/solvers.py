@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/11/08 17:22:16
+Last modified: 2025/11/08 17:27:17
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -47,8 +47,11 @@ class LinearStaticSolver:
         """
         self.mesh = model.mesh
         self.element_properties = model.element_properties
-        self.applied_forces = model.bc.applied_forces
-        self.prescribed_displacements = model.bc.prescribed_displacements
+
+        # Registry-based BC system
+        self.bc = model.bc
+        self.registry = model.bc.registry
+
         self.dof_space = model.dof_space
         self.use_sparse = use_sparse
         self.state = SolverState.INITIALIZED
@@ -103,16 +106,15 @@ class LinearStaticSolver:
         return None
 
     def apply_boundary_conditions(self) -> None:
-        """Applies Neumann boundary conditions (forces only).
-
-        Dirichlet BCs are handled via static condensation during solve.
-        """
+        """Apply nodal forces from registry to global RHS vector."""
 
         self._ensure_state(SolverState.ASSEMBLED)
 
-        if self.applied_forces:
-            for dof, value in self.applied_forces:
-                self.global_force_vector[int(dof)] = value
+        # Pull Neumann forces from the registry
+        neumann_forces = self.registry.get_neumann_forces()
+
+        for dof, value in neumann_forces.items():
+            self.global_force_vector[dof] += value
 
         self.state = SolverState.BOUNDARY_APPLIED
         return None
@@ -126,16 +128,9 @@ class LinearStaticSolver:
         F = self.global_force_vector
 
         # Extract prescribed DOF information
-        if self.prescribed_displacements:
-            prescribed_dofs = np.array(
-                [int(dof) for dof, _ in self.prescribed_displacements], dtype=int
-            )
-            prescribed_vals = np.array(
-                [float(val) for _, val in self.prescribed_displacements], dtype=float
-            )
-        else:
-            prescribed_dofs = np.array([], dtype=int)
-            prescribed_vals = np.array([], dtype=float)
+        dirichlet = self.registry.get_dirichlet_values()
+        prescribed_dofs = np.array(list(dirichlet.keys()), dtype=int)
+        prescribed_vals = np.array(list(dirichlet.values()), dtype=float)
 
         # Identify free DOFs
         all_dofs = np.arange(K.shape[0])

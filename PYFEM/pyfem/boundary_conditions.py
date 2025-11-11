@@ -3,10 +3,11 @@
 Module defining the BoundaryConditions class.
 
 Created: 2025/10/25 19:28:51
-Last modified: 2025/10/27 22:37:24
+Last modified: 2025/11/08 16:47:30
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
+from .dof_constraint_registry import DOFConstraintRegistry
 from .dof_types import DOFSpace, DOFType
 from .mesh import Mesh
 
@@ -18,24 +19,24 @@ class BoundaryConditions:
     boundary conditions. Supports specifying conditions on individual nodes or
     node sets.
 
-    Attributes:
-        dof_space: DOF space for mapping nodes to global DOFs
-        mesh: Mesh containing node sets
-        prescribed_displacements: List of (global_dof, value) tuples
-        applied_forces: List of (global_dof, value) tuples
+    Users call methods like `prescribe_displacement()` or `apply_force()`.
+    Internally, this class resolves node sets, maps them to global DOF indices,
+    and delegates the actual DOF bookkeeping and conflict-prevention to the
+    DOFConstraintRegistry.
     """
 
     def __init__(self, dof_space: DOFSpace, mesh: Mesh):
         """Initialize boundary conditions."""
         self.dof_space = dof_space
         self.mesh = mesh
-        self.prescribed_displacements: list[tuple[int, float]] = []
-        self.applied_forces: list[tuple[int, float]] = []
+
+        # Central low-level storage for DOF constraints
+        self.registry = DOFConstraintRegistry()
 
     def prescribe_displacement(
         self, nodes: int | set[int] | str, dof_type: DOFType, value: float
     ) -> None:
-        """Prescribe displacement (Dirichlet boundary condition).
+        """Apply a Dirichlet boundary condition (prescribed displacement).
 
         Args:
             nodes: Single node ID, set of node IDs, or node set name/tag
@@ -52,12 +53,12 @@ class BoundaryConditions:
 
         for node in node_ids:
             global_dof = self.dof_space.get_global_dof(node, dof_type)
-            self.prescribed_displacements.append((global_dof, value))
+            self.registry.set_dirichlet_value(global_dof, value)
 
     def apply_force(
         self, nodes: int | set[int] | str, dof_type: DOFType, value: float
     ) -> None:
-        """Apply force (Neumann boundary condition).
+        """Apply a Neumann boundary condition (nodal force).
 
         Args:
             nodes: Single node ID, set of node IDs, or node set name/tag
@@ -74,7 +75,7 @@ class BoundaryConditions:
 
         for node in node_ids:
             global_dof = self.dof_space.get_global_dof(node, dof_type)
-            self.applied_forces.append((global_dof, value))
+            self.registry.add_neumann_force(global_dof, value)
 
     def _resolve_nodes(self, nodes: int | set[int] | str) -> set[int]:
         """Resolve nodes specification to a set of node IDs.

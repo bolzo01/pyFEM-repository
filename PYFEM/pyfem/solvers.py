@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/11/06 22:41:59
+Last modified: 2025/11/08 17:22:16
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -11,6 +11,7 @@ import time
 from enum import Enum, auto
 
 import numpy as np
+from scipy import sparse
 
 from .fem import assemble_global_stiffness_matrix
 from .model import Model
@@ -29,11 +30,12 @@ class LinearStaticSolver:
     Assembles and solves the system of equations KU=F.
     """
 
-    def __init__(self, model: Model):
+    def __init__(self, model: Model, use_sparse: bool = True):
         """Initialize solver from a Model.
 
         Args:
             model: Model object containing mesh, element properties, BCs, and DOF space
+            use_sparse: Use sparse matrix storage (default: True)
 
         Example:
             problem = Problem(Physics.MECHANICS, Dimension.D1)
@@ -48,11 +50,18 @@ class LinearStaticSolver:
         self.applied_forces = model.bc.applied_forces
         self.prescribed_displacements = model.bc.prescribed_displacements
         self.dof_space = model.dof_space
+        self.use_sparse = use_sparse
         self.state = SolverState.INITIALIZED
 
         # Initialize global matrices and vectors as instance attributes
         total_dofs = self.dof_space.total_dofs
-        self.global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
+
+        # Initialize empty structures
+        if use_sparse:
+            self.global_stiffness_matrix = sparse.csc_matrix((total_dofs, total_dofs))
+        else:
+            self.global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
+
         self.global_force_vector = np.zeros(total_dofs)
 
         # Will be computed by solve()
@@ -65,6 +74,7 @@ class LinearStaticSolver:
         self.matrix_size_bytes: int = 0
         self.num_nonzero_entries: int = 0
         self.sparsity_percentage: float = 0.0
+        self.solve_time: float = 0.0
 
     def _ensure_state(self, expected: SolverState) -> None:
         if self.state != expected:
@@ -78,11 +88,12 @@ class LinearStaticSolver:
         self._ensure_state(SolverState.INITIALIZED)
 
         # Assemble the global stiffness matrix
-        assemble_global_stiffness_matrix(
+        self.global_stiffness_matrix = assemble_global_stiffness_matrix(
             self.mesh,
             self.element_properties,
             self.global_stiffness_matrix,
             self.dof_space,
+            use_sparse=self.use_sparse,
         )
         # print("\n- Global stiffness matrix K:")
         # for row in self.global_stiffness_matrix:
@@ -130,8 +141,6 @@ class LinearStaticSolver:
         all_dofs = np.arange(K.shape[0])
         free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
 
-        # Dense solver with static condensation
-
         # Partition the system
         if len(prescribed_dofs) > 0:
             K_ff = K[np.ix_(free_dofs, free_dofs)]
@@ -141,9 +150,15 @@ class LinearStaticSolver:
             K_ff = K
             F_f = F[free_dofs]
 
-        # Solve
         start_time = time.time()
-        U_free = np.linalg.solve(K_ff, F_f)
+
+        if self.use_sparse and sparse.isspmatrix(K):
+            # Sparse solver with static condensation
+            U_free = sparse.linalg.spsolve(K_ff, F_f)
+        else:
+            # Dense solver with static condensation
+            U_free = np.linalg.solve(K_ff, F_f)
+
         self.solve_time = time.time() - start_time
 
         # Reconstruct full displacement vector
@@ -152,28 +167,61 @@ class LinearStaticSolver:
         if len(prescribed_dofs) > 0:
             self.nodal_displacements[prescribed_dofs] = prescribed_vals
 
+        # print("\n- Nodal displacements U:")
+        # print(self.nodal_displacements)
+
+        self._compute_statistics(K, free_dofs, prescribed_dofs)
+
+        self.state = SolverState.SOLVED
+
+        return None
+
+    def _compute_statistics(self, K, free_dofs, prescribed_dofs) -> None:
+        """Computes solver statistics."""
+
+        if self.use_sparse and sparse.isspmatrix(K):
+            # Total number of matrix entries
+            self.num_matrix_entries = K.shape[0] * K.shape[1]
+
+            # Matrix size in memory (bytes)
+            self.matrix_size_bytes = K.data.nbytes + K.indices.nbytes + K.indptr.nbytes
+
+            # Sparsity statistics
+            self.num_nonzero_entries = K.nnz  # Number of stored values, includes zeros
+            self.sparsity_percentage = (
+                1.0 - self.num_nonzero_entries / self.num_matrix_entries
+            ) * 100.0
+        else:
+            # Total number of matrix entries
+            self.num_matrix_entries = self.global_stiffness_matrix.size
+
+            # Matrix size in memory (bytes)
+            self.matrix_size_bytes = self.global_stiffness_matrix.nbytes
+
+            # Sparsity statistics
+            self.num_nonzero_entries = int(
+                np.count_nonzero(self.global_stiffness_matrix)
+            )
+            self.sparsity_percentage = (
+                1.0 - self.num_nonzero_entries / self.num_matrix_entries
+            ) * 100.0
+
+        # Common statistics
+
         # System size (number of equations/unknowns)
         self.system_size = self.dof_space.total_dofs
-
-        # Matrix dimensions (system_size × system_size)
+        # Matrix dimensions (system_size x system_size)
         self.matrix_shape = self.global_stiffness_matrix.shape
-
-        # Total number of matrix entries
-        self.num_matrix_entries = self.global_stiffness_matrix.size
-
-        # Matrix size in memory (bytes)
-        self.matrix_size_bytes = self.global_stiffness_matrix.nbytes
-
-        # Sparsity statistics
-        self.num_nonzero_entries = int(np.count_nonzero(self.global_stiffness_matrix))
-        self.sparsity_percentage = (
-            1.0 - self.num_nonzero_entries / self.num_matrix_entries
-        ) * 100.0
 
         print(f"\n{'=' * 70}")
         print("Solver Statistics")
         print(f"{'=' * 70}")
+        print(
+            f"  Solver type:                  {'SPARSE' if self.use_sparse else 'DENSE'}"
+        )
         print(f"  System size (DOFs):           {self.system_size}")
+        print(f"  Free DOFs:                    {len(free_dofs):,}")
+        print(f"  Prescribed DOFs:              {len(prescribed_dofs):,}")
         print(
             f"  Matrix shape:                 {self.matrix_shape[0]} x {self.matrix_shape[1]}"
         )
@@ -188,10 +236,5 @@ class LinearStaticSolver:
             "  Note:                         Statistics for ORIGINAL matrix (before BCs)"
         )
         print(f"{'=' * 70}")
-
-        # print("\n- Nodal displacements U:")
-        # print(self.nodal_displacements)
-
-        self.state = SolverState.SOLVED
 
         return None

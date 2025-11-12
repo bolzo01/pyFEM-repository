@@ -3,13 +3,14 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/11/08 17:27:17
+Last modified: 2025/11/11 22:08:43
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import time
 from enum import Enum, auto
 
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy import sparse
 
@@ -231,5 +232,7 @@ class LinearStaticSolver:
             "  Note:                         Statistics for ORIGINAL matrix (before BCs)"
         )
         print(f"{'=' * 70}")
+
+        plt.spy(K)
 
         return None

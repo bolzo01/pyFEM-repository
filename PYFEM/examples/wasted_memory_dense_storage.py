@@ -13,7 +13,7 @@ and records key performance metrics including:
 - The memory footprint of the dense matrix representation.
 
 Created: 2025/10/29 18:26:04
-Last modified: 2025/11/08 10:44:04
+Last modified: 2025/11/11 22:08:53
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 

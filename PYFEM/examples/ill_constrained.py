@@ -3,8 +3,8 @@
 Demonstrates detection of conflicting boundary conditions.
 
 Created: 2024/11/06 17:32:52
-Last modified: 2025/11/08 17:03:36
-Author: Angelo Simone (angelo.simone@unipd.it)
+Last modified: 2025/11/11 22:17:46
+Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
 import numpy as np

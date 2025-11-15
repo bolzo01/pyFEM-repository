@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/15 17:21:21
+Last modified: 2025/11/11 19:18:39
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -122,7 +122,7 @@ def _compute_local_stiffness(
         elem_prop: Element properties
         element_index: Index of current element
         element_connectivity: Element connectivity array
-        points: Nodal coordinates
+        mesh: Mesh object with nodal coordinates
 
     Returns:
         Local stiffness matrix
@@ -195,7 +195,6 @@ def _compute_local_stiffness(
 
     else:
         raise ValueError(f"Unknown element kind: {elem_prop.kind}")
-        raise ValueError(f"Unknown element kind: {elem_prop.kind}")
 
 
 def _compute_bar_1d_isoparametric(
@@ -203,7 +202,7 @@ def _compute_bar_1d_isoparametric(
 ) -> np.ndarray:
     """
     Numerical integration of a 2-node linear 1D bar element stiffness matrix,
-    using shape functions and derivatives expressed directly in the reference space.
+    using shape functions and derivatives expressed in the reference space.
     """
 
     if x_nodes.size != 2:
@@ -241,7 +240,7 @@ def bar1d_linear_B_matrix_isoparametric(
     x_nodes: np.ndarray, xi: float
 ) -> tuple[np.ndarray, float]:
     """
-    Computes the B-matrix and Jacobian for isoparametric 2-node linear bar element.
+    Compute Jacobian and B-matrix for isoparametric 2-node linear bar element.
 
     Args:
         x_nodes: Array of nodal coordinates [x1, x2]
@@ -250,12 +249,13 @@ def bar1d_linear_B_matrix_isoparametric(
     Returns:
         B: Strain-displacement 1x2 matrix: [dN1/dx, dN2/dx]
         J: Determinant of the Jacobian matrix
+
     """
 
     # Derivatives of linear shape functions w.r.t. xi: [dN1/dxi, dN2/dxi]
     dN1_dxi = -0.5
     dN2_dxi = +0.5
-    dN_dxi = np.array([[dN1_dxi, dN2_dxi]])
+    dN_dxi = np.array([[dN1_dxi, dN2_dxi]])  # 1x2 matrix
 
     # Jacobian: J = dx/dxi = dNi/dxi * xi (= L/2 for 2-node 1D line element only)
     J = float(dN_dxi @ x_nodes.reshape(2, 1))
@@ -267,10 +267,9 @@ def bar1d_linear_B_matrix_isoparametric(
         )
 
     # Transform to physical coordinates: dN/dx = (dN/dxi) * (dxi/dx) = (dN/dxi) / J
-
     dN_dx = dN_dxi / J
 
-    # B matrix
+    # B-matrix for 1D 2-node line element: [dN1/dx, dN2/dx]
     B = dN_dx.reshape(1, 2)
 
     return B, J

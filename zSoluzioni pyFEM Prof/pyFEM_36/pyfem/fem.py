@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/15 17:21:21
+Last modified: 2025/11/11 23:03:34
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -122,7 +122,7 @@ def _compute_local_stiffness(
         elem_prop: Element properties
         element_index: Index of current element
         element_connectivity: Element connectivity array
-        points: Nodal coordinates
+        mesh: Mesh object with nodal coordinates
 
     Returns:
         Local stiffness matrix
@@ -161,7 +161,45 @@ def _compute_local_stiffness(
         else:
             # Numerical integration
             x_nodes = mesh.points[element_nodes]
-            return _compute_bar_1d_isoparametric(E, A, x_nodes, integration_scheme)
+            return _compute_bar_1D_isoparametric(E, A, x_nodes, integration_scheme)
+
+    elif elem_prop.kind == "bar3_1D":
+        # Check if numerical integration is requested
+        integration_scheme = elem_prop.meta.get("integration", "analytical")
+        if not isinstance(integration_scheme, (str, int)):
+            raise TypeError("integration must be a string or integer")
+
+        E = param(elem_prop, "E", float)
+        A = param(elem_prop, "A", float)
+
+        # Get element nodes and compute length
+        element_nodes = element_connectivity[element_index]
+
+        node1, node2, _ = element_nodes
+        x1 = mesh.points[node1]
+        x2 = mesh.points[node2]
+        L = x2 - x1
+
+        # Bar stiffness matrix
+        if integration_scheme == "analytical":
+            # Closed-form stiffness matrix (valid for constant E, A and a straight element with centered mid-node)
+            k_e = (E * A) / L
+            local_stiffness_matrix = (
+                k_e
+                * np.array(
+                    [
+                        [7.0, 1.0, -8.0],
+                        [1.0, 7.0, -8.0],
+                        [-8.0, -8.0, 16.0],
+                    ]
+                )
+                / 3.0
+            )
+            return local_stiffness_matrix
+        else:
+            # Numerical integration
+            x_nodes = mesh.points[element_nodes]
+            return _compute_bar3_1D_isoparametric(E, A, x_nodes, integration_scheme)
 
     elif elem_prop.kind == "bar_2D":
         E = param(elem_prop, "E", float)
@@ -195,15 +233,14 @@ def _compute_local_stiffness(
 
     else:
         raise ValueError(f"Unknown element kind: {elem_prop.kind}")
-        raise ValueError(f"Unknown element kind: {elem_prop.kind}")
 
 
-def _compute_bar_1d_isoparametric(
+def _compute_bar_1D_isoparametric(
     E: float, A: float, x_nodes: np.ndarray, integration_scheme: str | int
 ) -> np.ndarray:
     """
     Numerical integration of a 2-node linear 1D bar element stiffness matrix,
-    using shape functions and derivatives expressed directly in the reference space.
+    using shape functions and derivatives expressed in the reference space.
     """
 
     if x_nodes.size != 2:
@@ -226,7 +263,7 @@ def _compute_bar_1d_isoparametric(
         weight = float(w[ip])
 
         # Compute B matrix & Jacobian in physical space
-        B, J = bar1d_linear_B_matrix_isoparametric(x_nodes, xi_ip)
+        B, J = bar_1D_B_matrix_isoparametric(x_nodes, xi_ip)
 
         # Integrand at this quadrature point
         integrand = B.T @ (E * A * B)
@@ -237,11 +274,11 @@ def _compute_bar_1d_isoparametric(
     return K_local
 
 
-def bar1d_linear_B_matrix_isoparametric(
+def bar_1D_B_matrix_isoparametric(
     x_nodes: np.ndarray, xi: float
 ) -> tuple[np.ndarray, float]:
     """
-    Computes the B-matrix and Jacobian for isoparametric 2-node linear bar element.
+    Compute Jacobian and B-matrix for isoparametric 2-node linear bar element.
 
     Args:
         x_nodes: Array of nodal coordinates [x1, x2]
@@ -250,12 +287,13 @@ def bar1d_linear_B_matrix_isoparametric(
     Returns:
         B: Strain-displacement 1x2 matrix: [dN1/dx, dN2/dx]
         J: Determinant of the Jacobian matrix
+
     """
 
     # Derivatives of linear shape functions w.r.t. xi: [dN1/dxi, dN2/dxi]
     dN1_dxi = -0.5
     dN2_dxi = +0.5
-    dN_dxi = np.array([[dN1_dxi, dN2_dxi]])
+    dN_dxi = np.array([[dN1_dxi, dN2_dxi]])  # 1x2 matrix
 
     # Jacobian: J = dx/dxi = dNi/dxi * xi (= L/2 for 2-node 1D line element only)
     J = float(dN_dxi @ x_nodes.reshape(2, 1))
@@ -267,10 +305,88 @@ def bar1d_linear_B_matrix_isoparametric(
         )
 
     # Transform to physical coordinates: dN/dx = (dN/dxi) * (dxi/dx) = (dN/dxi) / J
-
     dN_dx = dN_dxi / J
 
-    # B matrix
+    # B-matrix for 1D 2-node line element: [dN1/dx, dN2/dx]
     B = dN_dx.reshape(1, 2)
+
+    return B, J
+
+
+def _compute_bar3_1D_isoparametric(
+    E: float, A: float, x_nodes: np.ndarray, integration_scheme: str | int
+) -> np.ndarray:
+    """
+    Numerical integration of a 3-node linear 1D bar element stiffness matrix,
+    using shape functions and derivatives expressed in the reference space.
+    """
+
+    if x_nodes.size != 3:
+        raise ValueError("This formulation only applies to 3-node linear elements.")
+
+    # Get Gauss rule
+    quad = get_quadrature_rule("bar3_1D", integration_scheme)
+    if quad is None:
+        raise ValueError("Analytical integration should not call numerical routine.")
+
+    K_local = np.zeros((3, 3))
+
+    # Quadrature points in reference space
+    xi = quad.points
+    w = quad.weights
+    n_gauss = quad.n_points
+
+    for ip in range(n_gauss):
+        xi_ip = float(xi[ip])
+        weight = float(w[ip])
+
+        # Compute B matrix & Jacobian in physical space
+        B, J = bar3_1D_B_matrix_isoparametric(x_nodes, xi_ip)
+
+        # Integrand at this quadrature point
+        integrand = B.T @ (E * A * B)
+
+        # Accumulate contribution
+        K_local += weight * integrand * J
+
+    return K_local
+
+
+def bar3_1D_B_matrix_isoparametric(
+    x_nodes: np.ndarray, xi: float
+) -> tuple[np.ndarray, float]:
+    """
+    Compute Jacobian and B-matrix for isoparametric 3-node linear bar element.
+
+    Args:
+        x_nodes: Array of nodal coordinates [x1, x2, x3]
+        xi: Reference coordinate in [-1, 1]
+
+    Returns:
+        B: Strain-displacement 1x3 matrix: [dN1/dx, dN2/dx, dN3/dx]
+        J: Determinant of the Jacobian matrix
+
+    """
+
+    # Derivatives of linear shape functions w.r.t. xi: [dN1/dxi, dN2/dxi, dN3/dxi]
+    dN1_dxi = xi - 0.5
+    dN2_dxi = xi + 0.5
+    dN3_dxi = -2.0 * xi
+    dN_dxi = np.array([[dN1_dxi, dN2_dxi, dN3_dxi]])  # 1x3 matrix
+
+    # Jacobian: J = dx/dxi = dNi/dxi * xi
+    J = float(dN_dxi @ x_nodes.reshape(3, 1))
+
+    if J <= 0:
+        raise ValueError(
+            f"Jacobian is non-positive (J = {J}). "
+            "This indicates reversed node ordering or an inverted element."
+        )
+
+    # Transform to physical coordinates: dN/dx = (dN/dxi) * (dxi/dx) = (dN/dxi) / J
+    dN_dx = dN_dxi / J
+
+    # B-matrix for 1D 3-node line element: [dN1/dx, dN2/dx, dN3/dx]
+    B = dN_dx.reshape(1, 3)
 
     return B, J

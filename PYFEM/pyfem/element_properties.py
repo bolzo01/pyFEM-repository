@@ -6,7 +6,7 @@ Defines element types with their constitutive models, material parameters,
 and discretization metadata.
 
 Created: 2025/10/19 00:16:39
-Last modified: 2025/11/08 16:17:10
+Last modified: 2025/11/09 19:00:21
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -138,21 +138,22 @@ def make_element_properties(pairs) -> ElementProperties:
 
 REQUIRED_PARAMS: dict[str, set[str]] = {
     "spring_1D": {"k"},
+    "bar_1D": {"E", "A"},
     "bar_2D": {"E", "A"},
-    # "beam_2D": {"E", "A", "I"},
+    # "beam_1D": {"E", "A", "I"},
     # "plane_stress": {"E", "nu"},
 }
 
 
-ALLOWED_META: dict[str, dict[str, set[str]]] = {
+ALLOWED_META: dict[str, dict[str, set[str | int]]] = {
     "spring_1D": {
         # No computational metadata needed - analytical stiffness only
     },
-    "bar_2D": {
+    "bar_1D": {
         "interpolation": {"linear", "quadratic", "cubic"},
-        "integration": {"analytical", "full", "reduced"},
+        "integration": {"analytical", "full", "reduced", 1, 2, 3},
     },
-    # "beam_2D": {
+    # "beam_1D": {
     #     "interpolation": {"linear", "cubic"},
     #     "integration": {"analytical", "full", "reduced"},
     # },
@@ -201,7 +202,7 @@ def validate_mesh_and_element_properties(
                     if meta_value not in allowed_values:
                         raise ElementPropertyError(
                             f"Element property '{label}' meta field '{meta_key}' has invalid value '{meta_value}'. "
-                            f"Allowed values: {sorted(allowed_values)}"
+                            f"Allowed values: {allowed_values}"
                         )
                 # Otherwise: meta_key is informational/documentation, no validation needed
 

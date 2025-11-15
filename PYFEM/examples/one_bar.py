@@ -3,8 +3,8 @@
 Solve a bar in tension.
 
 Created: 2025/10/18 18:18:18
-Last modified: 2025/11/06 22:24:57
-Author: Angelo Simone (angelo.simone@unipd.it)
+Last modified: 2025/11/15 12:22:45
+Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
 import numpy as np
@@ -35,7 +35,7 @@ def main() -> np.ndarray:
     # Define element properties registry
     element_properties = pyfem.make_element_properties(
         [
-            ("bar", ("bar_1D", {"E": 23.2, "A": 7.0})),
+            ("bar", ("bar_1D", {"E": 23.2, "A": 7.0}, {"integration": 3})),
         ]
     )
 

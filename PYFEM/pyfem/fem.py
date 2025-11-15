@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/08 10:00:08
+Last modified: 2025/11/15 16:28:27
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -13,6 +13,7 @@ from scipy import sparse
 from .dof_types import DOFSpace
 from .element_properties import ElementProperties, ElementProperty, param
 from .mesh import Mesh
+from .quadrature import get_quadrature_rule
 
 
 def assemble_global_stiffness_matrix(
@@ -136,6 +137,11 @@ def _compute_local_stiffness(
         return local_stiffness_matrix
 
     elif elem_prop.kind == "bar_1D":
+        # Check if numerical integration is requested
+        integration_scheme = elem_prop.meta.get("integration", "analytical")
+        if not isinstance(integration_scheme, (str, int)):
+            raise TypeError("integration must be a string or integer")
+
         E = param(elem_prop, "E", float)
         A = param(elem_prop, "A", float)
 
@@ -147,10 +153,15 @@ def _compute_local_stiffness(
         L = x2 - x1
 
         # Bar stiffness matrix
-        k_e = (E * A) / L
-        # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
-        local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
-        return local_stiffness_matrix
+        if integration_scheme == "analytical":
+            # Analytical integration (exact for constant E, A)
+            k_e = (E * A) / L
+            local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
+            return local_stiffness_matrix
+        else:
+            # Numerical integration
+            x_nodes = mesh.points[element_nodes]
+            return _compute_bar_1d_numerical_physical(E, A, x_nodes, integration_scheme)
 
     elif elem_prop.kind == "bar_2D":
         E = param(elem_prop, "E", float)
@@ -184,3 +195,85 @@ def _compute_local_stiffness(
 
     else:
         raise ValueError(f"Unknown element kind: {elem_prop.kind}")
+        raise ValueError(f"Unknown element kind: {elem_prop.kind}")
+
+
+def _compute_bar_1d_numerical_physical(
+    E: float, A: float, x_nodes: np.ndarray, integration_scheme: str | int
+) -> np.ndarray:
+    """
+    Numerical integration of a 2-node linear 1D bar element stiffness matrix,
+    using shape functions and derivatives expressed directly in physical space.
+
+    This version mimics the general structure of isoparametric elements:
+    - B matrix evaluated at integration points
+    - Jacobian evaluated inside integration loop
+    - Numerical integration structure identical to higher-dimensional elements
+    """
+
+    if x_nodes.size != 2:
+        raise ValueError(
+            "Physical-space formulation only applies to 2-node linear elements."
+        )
+
+    # Get Gauss rule
+    quad = get_quadrature_rule("bar_1D", integration_scheme)
+    if quad is None:
+        raise ValueError("Analytical integration should not call numerical routine.")
+
+    K_local = np.zeros((2, 2))
+
+    # Quadrature points in reference space
+    xi = quad.points
+    w = quad.weights
+    n_gauss = quad.n_points
+
+    x1, x2 = x_nodes
+    L = x2 - x1
+
+    for ip in range(n_gauss):
+        xi_ip = float(xi[ip])
+        weight = float(w[ip])
+
+        # Compute integration points in physical space
+        x_gp = 0.5 * L * (1 + xi_ip) + x1  # physical coordinate of quadrature point
+
+        # Compute B matrix & Jacobian in physical space
+        B, J = bar1d_linear_B_matrix(x_nodes, x_gp)
+
+        # Integrand at this quadrature point
+        integrand = B.T @ (E * A * B)
+
+        # Accumulate contribution
+        K_local += weight * integrand * J
+
+    return K_local
+
+
+def bar1d_linear_B_matrix(x_nodes: np.ndarray, x_gp: float) -> tuple[np.ndarray, float]:
+    """
+    Computes the B-matrix and Jacobian for a 2-node linear bar element
+    using shape functions defined directly in physical space.
+
+    Args:
+        x_nodes: array([x1, x2])
+        x_gp: quadrature point location in physical space
+
+    Returns:
+        B: (1,2) strain-displacement matrix evaluated at x_gp
+        J: Jacobian value (here J = L/2)
+    """
+    x1, x2 = x_nodes
+    L = x2 - x1
+
+    # Shape function derivatives in physical space
+    dN1_dx = -1.0 / L
+    dN2_dx = +1.0 / L
+
+    # B matrix
+    B = np.array([[dN1_dx, dN2_dx]])  # shape (1,2)
+
+    # Jacobian for mapping
+    J = L / 2.0
+
+    return B, J

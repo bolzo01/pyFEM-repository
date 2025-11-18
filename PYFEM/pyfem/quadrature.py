@@ -3,7 +3,7 @@
 Quadrature rules for numerical integration in finite element analysis.
 
 Created: 2025/11/08 23:11:28
-Last modified: 2025/11/10 09:50:56
+Last modified: 2025/11/15 18:00:19
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -223,6 +223,25 @@ def get_quadrature_rule(
             order = 1
         elif integration_scheme == "reduced":
             order = 1  # same as full for linear bar
+        else:
+            try:
+                order = int(integration_scheme)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid integration scheme '{integration_scheme}' for {element_kind}. "
+                    f"Use 'full', 'reduced', or an integer."
+                )
+        return GaussLegendre1D(order)
+
+    elif element_kind in ("bar3_1D"):
+        # 3-node bar element: 2 Gauss point is exact
+        if integration_scheme == "full":
+            order = 2
+        elif integration_scheme == "reduced":
+            raise ValueError(
+                f"Invalid integration scheme '{integration_scheme}' for {element_kind}. "
+                f"Use 'full' or an integer."
+            )
         else:
             try:
                 order = int(integration_scheme)

@@ -6,7 +6,7 @@ Defines element types with their constitutive models, material parameters,
 and discretization metadata.
 
 Created: 2025/10/19 00:16:39
-Last modified: 2025/11/09 19:00:21
+Last modified: 2025/11/15 17:54:07
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -139,6 +139,7 @@ def make_element_properties(pairs) -> ElementProperties:
 REQUIRED_PARAMS: dict[str, set[str]] = {
     "spring_1D": {"k"},
     "bar_1D": {"E", "A"},
+    "bar3_1D": {"E", "A"},
     "bar_2D": {"E", "A"},
     # "beam_1D": {"E", "A", "I"},
     # "plane_stress": {"E", "nu"},

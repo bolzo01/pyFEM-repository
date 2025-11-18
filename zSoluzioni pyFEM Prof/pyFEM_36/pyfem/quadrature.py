@@ -3,7 +3,7 @@
 Quadrature rules for numerical integration in finite element analysis.
 
 Created: 2025/11/08 23:11:28
-Last modified: 2025/11/11 22:57:37
+Last modified: 2025/11/15 18:00:17
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 

@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/15 17:21:21
+Last modified: 2025/11/15 17:55:28
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -162,6 +162,45 @@ def _compute_local_stiffness(
             # Numerical integration
             x_nodes = mesh.points[element_nodes]
             return _compute_bar_1d_isoparametric(E, A, x_nodes, integration_scheme)
+
+    elif elem_prop.kind == "bar3_1D":
+        # Check if numerical integration is requested
+        integration_scheme = elem_prop.meta.get("integration", "analytical")
+        if not isinstance(integration_scheme, (str, int)):
+            raise TypeError("integration must be a string or integer")
+
+        E = param(elem_prop, "E", float)
+        A = param(elem_prop, "A", float)
+
+        # Get element nodes and compute length
+        element_nodes = element_connectivity[element_index]
+
+        node1, node2, _ = element_nodes
+        x1 = mesh.points[node1]
+        x2 = mesh.points[node2]
+        L = x2 - x1
+
+        # Get element nodes and compute length
+        element_nodes = element_connectivity[element_index]
+        node1, node2, _ = element_nodes
+        P1 = mesh.points[node1]
+        P2 = mesh.points[node2]
+
+        # Bar stiffness matrix
+        k_e = (E * A) / L
+        # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
+        local_stiffness_matrix = (
+            k_e
+            * np.array(
+                [
+                    [7.0, 1.0, -8.0],
+                    [1.0, 7.0, -8.0],
+                    [-8.0, -8.0, 16.0],
+                ]
+            )
+            / 3.0
+        )
+        return local_stiffness_matrix
 
     elif elem_prop.kind == "bar_2D":
         E = param(elem_prop, "E", float)

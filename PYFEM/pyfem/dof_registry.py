@@ -6,7 +6,7 @@ This module defines the mapping using string keys that correspond
 to the `Problem` enum values.
 
 Created: 2025/10/26 01:39:28
-Last modified: 2025/11/08 16:24:46
+Last modified: 2025/11/01 15:43:42
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -16,15 +16,15 @@ DOF_REQUIREMENTS: dict[str, list[DOFType]] = {
     "mechanics_1d": [
         DOFType.U_X,
     ],
-    "mechanics_2d": [
-        DOFType.U_X,
-        DOFType.U_Y,
-    ],
     "heat_transfer_1d": [
         DOFType.TEMPERATURE,
     ],
     "heat_transfer_2d": [
         DOFType.TEMPERATURE,
+    ],
+    "mechanics_2d": [
+        DOFType.U_X,
+        DOFType.U_Y,
     ],
     "mechanics_3d": [
         DOFType.U_X,

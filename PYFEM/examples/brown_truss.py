@@ -3,7 +3,7 @@
 A Brown truss with a variable number of bays.
 
 Created: 2025/10/31 18:35:08
-Last modified: 2025/11/11 19:14:11
+Last modified: 2025/11/08 10:45:16
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -154,7 +154,7 @@ def benchmark_comparison():
     print("BENCHMARK: Sparse vs Dense Solver Comparison")
     print("=" * 70)
 
-    bay_sizes = [20, 200, 500]
+    bay_sizes = [20, 200, 2000, 3000, 4000]
 
     results = []
 
@@ -258,4 +258,4 @@ def benchmark_comparison():
 if __name__ == "__main__":
     main(bays=20, use_sparse=False)
     # main(bays=20, use_sparse=True)
-    benchmark_comparison()
+    # benchmark_comparison()

@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """
-Solve a bar in tension.
+Two 3-node bars in series with varying cross sections, under tension.
 
-Created: 2025/10/18 18:18:18
-Last modified: 2025/11/15 17:41:43
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Created: 2025/11/11 18:18:18
+Last modified: 2025/11/11 23:04:14
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np
@@ -59,7 +59,7 @@ def main() -> np.ndarray:
 
     # Define node sets
     mesh.add_node_set(tag=1, nodes={0}, name="left_end")
-    mesh.add_node_set(tag=2, nodes={1}, name="right_end")
+    mesh.add_node_set(tag=2, nodes={4}, name="right_end")
 
     print("\n- Node sets:")
     for tag, node_set in mesh.node_sets.items():
@@ -82,10 +82,7 @@ def main() -> np.ndarray:
     model.bc.prescribe_displacement("left_end", pyfem.DOFType.U_X, 0.0)
 
     # Neumann boundary conditions (applied forces)
-    model.bc.apply_force("right_end", pyfem.DOFType.U_X, 10.0)
-
-    # print(f"\n- Prescribed displacements: {model.bc.prescribed_displacements}")
-    # print(f"- Applied forces: {model.bc.applied_forces}")
+    model.bc.apply_force("right_end", pyfem.DOFType.U_X, 4.0)
 
     # PROCESSING: Solve FEA problem
 

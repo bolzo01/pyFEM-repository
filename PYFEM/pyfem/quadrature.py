@@ -3,7 +3,7 @@
 Quadrature rules for numerical integration in finite element analysis.
 
 Created: 2025/11/08 23:11:28
-Last modified: 2025/11/15 18:00:19
+Last modified: 2025/11/15 18:00:17
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -195,7 +195,7 @@ def get_quadrature_rule(
     """Factory function to create quadrature rules based on element type.
 
     Args:
-        element_kind: Element type ('bar_1D', 'bar_2D', 'quad4', 'tri3', etc.)
+        element_kind: Element type ('bar_1D', 'bar3_1D', 'quad4', 'tri3', etc.)
         integration_scheme: Integration scheme specification
             - 'analytical': Return None (use analytical integration)
             - 'full': Full integration
@@ -217,7 +217,7 @@ def get_quadrature_rule(
         return None
 
     # Determine default integration order based on element type
-    if element_kind in ("bar_1D", "bar_2D"):
+    if element_kind in ("bar_1D"):
         # Linear 2-node bar: 1 Gauss point is exact
         if integration_scheme == "full":
             order = 1

@@ -3,8 +3,8 @@
 Solve a bar in tension.
 
 Created: 2025/10/18 18:18:18
-Last modified: 2025/11/15 12:22:45
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Last modified: 2025/11/10 09:52:11
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np

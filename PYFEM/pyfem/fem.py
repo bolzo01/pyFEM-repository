@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/09 13:23:51
+Last modified: 2025/11/22 00:18:23
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -49,6 +49,7 @@ def assemble_global_stiffness_matrix(
         elif elem_prop.kind == "bar_1D":
             E = param(elem_prop, "E", float)
             A = param(elem_prop, "A", float)
+            K = param(elem_prop, "k", float)
 
             # Get element nodes and compute length
             element_nodes = element_connectivity[element_index]
@@ -59,8 +60,46 @@ def assemble_global_stiffness_matrix(
 
             # Bar stiffness matrix
             k_e = (E * A) / L
+            # Spring stiffness matrix
+            k_s = K * L
+
             # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
-            local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
+            local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]]) + np.array(
+                [[(1 / 3) * k_s, (1 / 6) * k_s], [(1 / 6) * k_s, (1 / 3) * k_s]]
+            )
+
+        elif elem_prop.kind == "bar3_1D_":
+            E = param(elem_prop, "E", float)
+            A = param(elem_prop, "A", float)
+            K = param(elem_prop, "k", float)
+
+            # Get element nodes and compute length
+            element_nodes = element_connectivity[element_index]
+            node1, node2, node3 = element_nodes
+            x1 = mesh.points[node1]
+            x2 = mesh.points[node2]
+            x3 = mesh.points[node3]
+            L = x3 - x1
+
+            # Bar stiffness matrix
+            k_e = (E * A) / (3 * L)
+            # Spring stiffness matrix
+            k_s = (K * L) / 30
+
+            # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
+            local_stiffness_matrix = np.array(
+                [
+                    [7 * k_e, -8 * k_e, k_e],
+                    [-8 * k_e, 16 * k_e, -8 * k_e],
+                    [1 * k_e, -8 * k_e, 7 * k_e],
+                ]
+            ) + np.array(
+                [
+                    [4 * k_s, 2 * k_s, -1 * k_s],
+                    [2 * k_s, 16 * k_s, 2 * k_s],
+                    [-1 * k_s, 2 * k_s, 4 * k_s],
+                ]
+            )
 
         elif elem_prop.kind == "bar_2D":
             E = param(elem_prop, "E", float)

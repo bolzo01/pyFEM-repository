@@ -3,7 +3,7 @@
 A Brown truss with a variable number of bays.
 
 Created: 2025/10/31 18:35:08
-Last modified: 2025/11/08 10:45:16
+Last modified: 2025/11/17 22:00:35
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -49,9 +49,7 @@ def brown_truss(bays: int) -> tuple[list[list[int]], np.ndarray]:
     return connectivity.tolist(), points
 
 
-def main(
-    bays: int = 3, use_sparse: bool = True
-) -> tuple[float, int, float, int, float]:
+def main(bays: int = 3, use_sparse: bool = True) -> pyfem.Solution:
     # PREPROCESSING
 
     # 1. Geometry and discretization
@@ -60,19 +58,26 @@ def main(
     num_nodes = len(points)
     num_elements = len(element_connectivity)
 
-    # 2. Element properties
-
-    # Define element properties registry
-    element_properties = pyfem.make_element_properties(
+    # 2. Materials
+    materials = pyfem.make_materials(
         [
-            ("bar", ("bar_2D", {"E": 206000.0, "A": 500.0})),
+            ("mate1", pyfem.LinearElastic1D(E=206000.0)),
         ]
     )
 
+    # 3. Define element properties registry
+    element_properties = pyfem.make_element_properties(
+        [
+            (
+                "bar",
+                pyfem.ElementProperty("bar_2D", {"A": 500.0}, material="mate1"),
+            ),
+        ]
+    )
     # Assign properties to elements
     element_property_labels = ["bar"] * len(element_connectivity)
 
-    # 3. Mesh
+    # 4. Mesh
 
     # Create mesh
     mesh = pyfem.Mesh(
@@ -83,7 +88,7 @@ def main(
         element_property_labels=element_property_labels,
     )
 
-    # 4. Create Model
+    # 5. Create Model
 
     problem = pyfem.Problem(
         pyfem.Physics.MECHANICS,
@@ -91,10 +96,11 @@ def main(
     )
 
     model = pyfem.Model(mesh, problem)
+    model.set_materials(materials)
     model.set_element_properties(element_properties)
     print(model)
 
-    # 5. Boundary conditions
+    # 6. Boundary conditions
 
     # Dirichlet boundary conditions (prescribed displacements)
     model.bc.prescribe_displacement(0, pyfem.DOFType.U_X, 0.0)
@@ -119,16 +125,15 @@ def main(
     solver.apply_boundary_conditions()
 
     # Solve for nodal displacements
-    solver.solve()
+    solution = solver.solve()
 
-    # POSTPROCESSING: Compute derived quantities
+    # POSTPROCESSING: Analyze results
 
     # Create postprocessor
     postprocessor = pyfem.PostProcessor(
-        model.mesh,
-        model.element_properties,
-        solver.global_stiffness_matrix,
-        solver.nodal_displacements,
+        model=model,
+        solution=solution,
+        global_stiffness_matrix=solver.global_stiffness_matrix,
         magnification_factor=1000.0,
     )
 
@@ -136,13 +141,7 @@ def main(
     postprocessor.undeformed_mesh()
     postprocessor.deformed_mesh()
 
-    return (
-        float(solver.nodal_displacements[num_nodes - 1]),
-        solver.dof_space.total_dofs,
-        solver.sparsity_percentage,
-        solver.matrix_size_bytes,
-        solver.solve_time,
-    )
+    return solution
 
 
 # ---------------------- examples
@@ -169,9 +168,13 @@ def benchmark_comparison():
         # Dense solver
         print("\n--- DENSE SOLVER ---")
         start = time.time()
-        _, dofs_d, sparsity_percentage_d, matrix_size_bytes_d, solve_time_d = main(
-            bays, use_sparse=False
-        )
+
+        solution = main(bays, use_sparse=False)
+        dofs_d = solution.solver_stats["system_size"]
+        sparsity_percentage_d = solution.solver_stats["sparsity_percentage"]
+        matrix_size_bytes_d = solution.solver_stats["matrix_size_bytes"]
+        solve_time_d = solution.solver_stats["solve_time"]
+
         total_time_d = time.time() - start
 
         results.append(
@@ -189,9 +192,13 @@ def benchmark_comparison():
         # Sparse solver
         print("\n--- SPARSE SOLVER ---")
         start_time = time.time()
-        _, dofs_s, sparsity_percentage_s, matrix_size_bytes_s, solve_time_s = main(
-            bays, use_sparse=True
-        )
+
+        solution = main(bays, use_sparse=True)
+        dofs_s = solution.solver_stats["system_size"]
+        sparsity_percentage_s = solution.solver_stats["sparsity_percentage"]
+        matrix_size_bytes_s = solution.solver_stats["matrix_size_bytes"]
+        solve_time_s = solution.solver_stats["solve_time"]
+
         total_time_s = time.time() - start_time
 
         results.append(

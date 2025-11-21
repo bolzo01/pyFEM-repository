@@ -2,11 +2,33 @@
 """
 Element property registry.
 
-Defines element types with their constitutive models, material parameters,
-and discretization metadata.
+
+This module defines how element properties are specified and validated
+in the finite element model. An ElementProperty describes:
+
+    - kind:   the element type (e.g. "spring_1D", "bar_1D")
+    - params: the required numerical parameters for that element
+    - meta:   optional discretization metadata (e.g. integration order)
+    - material: the material label assigned to the element
+
+Only the new format is supported:
+
+    ElementProperty(
+        kind="bar_1D",
+        params={"A": 7.0},
+        material="steel",
+        meta={"integration": 3}
+    )
+
+The registry is built by calling:
+
+    element_properties = make_element_properties([
+        ("bar", ElementProperty(...)),
+        ("spring", ElementProperty(...)),
+    ])
 
 Created: 2025/10/19 00:16:39
-Last modified: 2025/11/15 17:54:07
+Last modified: 2025/11/17 21:50:44
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -15,16 +37,16 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True, slots=True)
 class ElementProperty:
-    """Element definition combining constitutive model and parameters.
-
-    kind   : element type identifier (e.g., "spring_1D", "bar_1D", "plane_stress")
-    params : required parameters for that element (e.g., {"E": 210e9, "A": 0.01})
-    meta   : optional metadata for discretization (e.g., {"interpolation": "quadratic"})
+    """
+    Container describing the properties of a single finite element type
+    used in the model: kind, numerical parameters, discretization metadata,
+    and material assignment.
     """
 
     kind: str
     params: dict[str, object]
     meta: dict[str, object] = field(default_factory=dict)
+    material: str | None = None
 
 
 # Registry type alias
@@ -49,24 +71,25 @@ def param(elem_prop: ElementProperty, key: str, cast: type | None = None):
 
 def make_element_properties(pairs) -> ElementProperties:
     """
-    Build an element properties registry from a list of (label, entry) pairs.
+    Build an element properties registry from a list of (label, ElementProperty) pairs.
 
     Input format:
         [
-            ("bar1", ("bar_1D", {"E": 2.0, "A": 2.0})),
-            ("bar2", ("bar_1D", {"E": 2.0, "A": 1.0}, {"interpolation": "quadratic"})),
-            ("spring", ("spring_1D", {"k": 2.0})),
-            ("steel_beam", ("bar_1D", {"E": 200e9, "A": 0.01}, {"supplier": "ACME Corp"})),
+            ("bar", ElementProperty(
+                kind="bar_1D",
+                params={"A": 7.0},
+                material="steel",
+                meta={"integration": 3, "supplier": "ACME Corp"},
+            )),
         ]
 
-    Each entry can be:
-        - ElementProperty(kind, params[, meta])
-        - (kind: str, params: dict[str, object])
-        - (kind: str, params: dict[str, object], meta: dict[str, object])
+    Only ElementProperty instances are accepted. Older tuple formats
+    (e.g., ("bar_1D", {...})) are no longer supported.
 
     Returns:
         dict[str, ElementProperty]
     """
+
     # Ensure it's iterable
     try:
         iterator = iter(pairs)
@@ -98,36 +121,14 @@ def make_element_properties(pairs) -> ElementProperties:
         seen.add(label)
 
         # Normalize entry to ElementProperty
-        if isinstance(entry, ElementProperty):
-            elem_prop = entry
-        else:
-            if not isinstance(entry, (tuple, list)) or len(entry) not in (2, 3):
-                raise ValueError(
-                    f"Item #{idx} entry must be ElementProperty or (kind, params[, meta]), got: {entry!r}"
-                )
-            kind = entry[0]
-            params = entry[1]
-            meta = entry[2] if len(entry) == 3 else {}
+        if not isinstance(entry, ElementProperty):
+            raise ValueError(
+                f"Item #{idx}: entry must be an ElementProperty instance.\n"
+                f"Use: ElementProperty(kind=..., params=..., material=..., meta=...).\n"
+                f"Got: {entry!r}"
+            )
 
-            if not isinstance(kind, str) or not kind:
-                raise ValueError(f"Item #{idx} has invalid kind: {kind!r}")
-            if not isinstance(params, dict):
-                # Allow dict-like mappings but store a real dict
-                try:
-                    params = dict(params)
-                except Exception as exc:
-                    raise ValueError(
-                        f"Item #{idx} params must be a mapping, got: {type(params)!r}"
-                    ) from exc
-            if not isinstance(meta, dict):
-                try:
-                    meta = dict(meta)
-                except Exception as exc:
-                    raise ValueError(
-                        f"Item #{idx} meta must be a mapping, got: {type(meta)!r}"
-                    ) from exc
-
-            elem_prop = ElementProperty(kind=kind, params=dict(params), meta=dict(meta))
+        elem_prop = entry
 
         out[label] = elem_prop
 
@@ -138,18 +139,16 @@ def make_element_properties(pairs) -> ElementProperties:
 
 REQUIRED_PARAMS: dict[str, set[str]] = {
     "spring_1D": {"k"},
-    "bar_1D": {"E", "A"},
-    "bar3_1D": {"E", "A"},
-    "bar_2D": {"E", "A"},
-    # "beam_1D": {"E", "A", "I"},
-    # "plane_stress": {"E", "nu"},
+    "bar_1D": {"A"},
+    "bar3_1D": {"A"},
+    "bar_2D": {"A"},
+    # "beam_1D": {"A", "I"},
 }
 
+type MetaSpec = set[str | int]
 
-ALLOWED_META: dict[str, dict[str, set[str | int]]] = {
-    "spring_1D": {
-        # No computational metadata needed - analytical stiffness only
-    },
+ALLOWED_META: dict[str, dict[str, MetaSpec]] = {
+    "spring_1D": {},
     "bar_1D": {
         "interpolation": {"linear", "quadratic", "cubic"},
         "integration": {"analytical", "full", "reduced", 1, 2, 3},
@@ -196,8 +195,16 @@ def validate_mesh_and_element_properties(
         # 3) Validate meta fields (only those declared in ALLOWED_META)
         if elem_prop.kind in ALLOWED_META:
             allowed_meta_for_kind = ALLOWED_META[elem_prop.kind]
+
+            # Reject accidental use of meta["material"]
+            if "material" in elem_prop.meta:
+                raise ElementPropertyError(
+                    f"Element property '{label}' includes 'material' inside meta.\n"
+                    f"Material must be specified using ElementProperty(material=...)."
+                )
+
             for meta_key, meta_value in elem_prop.meta.items():
-                # Only validate if this meta_key is explicitly listed in ALLOWED_META
+                # Only validate keys explicitly listed in ALLOWED_META
                 if meta_key in allowed_meta_for_kind:
                     allowed_values = allowed_meta_for_kind[meta_key]
                     if meta_value not in allowed_values:
@@ -205,7 +212,7 @@ def validate_mesh_and_element_properties(
                             f"Element property '{label}' meta field '{meta_key}' has invalid value '{meta_value}'. "
                             f"Allowed values: {allowed_values}"
                         )
-                # Otherwise: meta_key is informational/documentation, no validation needed
+                # Otherwise: meta_key is informational — no validation required
 
     # 4) Mesh assignment length
     labels: list[str] = mesh.element_property_labels

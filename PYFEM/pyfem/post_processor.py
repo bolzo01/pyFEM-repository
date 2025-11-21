@@ -3,7 +3,7 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2025/11/06 22:16:17
+Last modified: 2025/11/17 23:57:05
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -13,9 +13,13 @@ import matplotlib.axes
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
+from scipy import sparse
 
-from .element_properties import ElementProperties, param
-from .mesh import Mesh
+from .element_properties import param
+from .elements.element_registry import ELEMENTS_THAT_REQUIRE_MATERIAL
+from .materials import LinearElastic1D
+from .model import Model
+from .solution import Solution
 
 
 class PostProcessor:
@@ -26,16 +30,17 @@ class PostProcessor:
 
     def __init__(
         self,
-        mesh: Mesh,
-        element_properties: ElementProperties,
-        global_stiffness_matrix: np.ndarray,
-        nodal_displacements: np.ndarray,
+        model: Model,
+        solution: Solution,
+        global_stiffness_matrix: np.ndarray | sparse.spmatrix | None,
         magnification_factor: float = 0.0,
     ):
-        self.mesh = mesh
-        self.element_properties = element_properties
+        self.model = model
+        self.mesh = model.mesh
+        self.element_properties = model.element_properties
+        self.solution = solution
+        self.nodal_displacements = solution.nodal_displacements
         self.global_stiffness_matrix = global_stiffness_matrix
-        self.nodal_displacements = nodal_displacements
         self.magnification = magnification_factor
 
     def compute_strain_energy_local(self) -> None:
@@ -47,20 +52,50 @@ class PostProcessor:
         """
 
         num_elements = self.mesh.num_elements
-        element_connectivity = self.mesh.element_connectivity
 
         total_strain_energy = 0.0
         for element_index in range(num_elements):
             label = self.mesh.element_property_labels[element_index]
             elem_prop = self.element_properties[label]
-            k_spring = float(param(elem_prop, "k", float))
-            node1, node2 = element_connectivity[element_index]
-            u1 = self.nodal_displacements[node1]
-            u2 = self.nodal_displacements[node2]
-            delta = u2 - u1
-            strain_energy = 0.5 * k_spring * delta**2
-            total_strain_energy += strain_energy
-            print(f"\n- Strain energy in element {element_index}: {strain_energy}")
+            kind = elem_prop.kind
+
+            if kind == "spring_1D":
+                k_spring = param(elem_prop, "k", float)
+                n1, n2 = self.mesh.element_connectivity[element_index]
+                u1 = self.nodal_displacements[n1]
+                u2 = self.nodal_displacements[n2]
+                energy = 0.5 * k_spring * (u2 - u1) ** 2
+
+            elif kind == "bar_1D":
+                # Retrieve the material
+                material = self._resolve_material(elem_prop, label)
+
+                if not isinstance(material, LinearElastic1D):
+                    raise TypeError(
+                        f"{kind} element requires LinearElastic1D material, "
+                        f"but got {type(material).__name__}"
+                    )
+
+                E = float(material.E)
+                A = param(elem_prop, "A", float)
+
+                n1, n2 = self.mesh.element_connectivity[element_index]
+                L = abs(self.mesh.points[n2] - self.mesh.points[n1])
+                u1 = self.nodal_displacements[n1]
+                u2 = self.nodal_displacements[n2]
+                strain = (u2 - u1) / L
+                stress = E * strain
+                energy = 0.5 * stress * strain * A * L
+
+            else:
+                raise NotImplementedError(
+                    f"Strain energy not implemented for element kind '{kind}'"
+                )
+
+            print(f"- Strain energy in element {element_index}: {energy}")
+
+            total_strain_energy += energy
+
         print(
             f"\n- Total strain energy in the system (from local computation): {total_strain_energy}"
         )
@@ -80,6 +115,89 @@ class PostProcessor:
         print(
             f"\n- Total strain energy in the system (from global computation): {total_strain_energy}"
         )
+
+    def _resolve_material(self, elem_prop, label: str):
+        """
+        Return the Material instance if the element requires a material.
+        Return None for material-free elements (e.g. spring_1D).
+        """
+        kind = elem_prop.kind
+
+        # ------------------------------------------------------------
+        # 1. Elements that DO NOT use material properties
+        # ------------------------------------------------------------
+        if kind not in ELEMENTS_THAT_REQUIRE_MATERIAL:
+            return None  # <-- the fix: springs skip material resolution entirely
+
+        # ------------------------------------------------------------
+        # 2. Elements that DO require a material
+        # ------------------------------------------------------------
+        material_name = elem_prop.material
+
+        # Fallback on meta["material"]
+        if material_name is None:
+            raw = elem_prop.meta.get("material")
+            if isinstance(raw, str):
+                material_name = raw
+            else:
+                raise ValueError(
+                    f"Element property '{label}' of type '{kind}' "
+                    f"requires a material but none was provided."
+                )
+
+        # Verify existence
+        if material_name not in self.model.materials:
+            raise ValueError(
+                f"Material '{material_name}' not found in model.materials "
+                f"for element '{label}'."
+            )
+
+        return self.model.materials[material_name]
+
+    def compute_element_stresses(self) -> list:
+        """
+        Compute stresses for each element at their Gauss points.
+
+        Returns
+        -------
+        list
+            A list where stresses[e] = array of stresses for element e.
+        """
+        from .elements.element_registry import create_element
+
+        stresses = []
+        mesh = self.model.mesh
+        U = self.solution.nodal_displacements
+
+        for e in range(mesh.num_elements):
+            # Element property
+            label = mesh.element_property_labels[e]
+            elem_prop = self.model.element_properties[label]
+
+            # Element instance
+            element = create_element(elem_prop)
+
+            # Node coordinates
+            elem_nodes = mesh.element_connectivity[e]
+            x_nodes = mesh.points[elem_nodes]
+
+            # Element displacement vector
+            dof_map = self.model.dof_space.get_dof_mapping(elem_nodes)
+            u_nodes = U[dof_map]
+
+            # Material
+            material = self._resolve_material(elem_prop, label)
+
+            # Stress at Gauss points (or analytical)
+            sigma = element.compute_stress(material, x_nodes, u_nodes)
+
+            stresses.append(sigma)
+
+        # Store in the Solution object
+        self.solution.element_stresses = stresses
+
+        print("Computed stresses for each element.")
+        return stresses
 
     # -----------------------------------------------------------------------------
     # TrussPlotter

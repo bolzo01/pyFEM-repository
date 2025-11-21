@@ -3,13 +3,15 @@
 Module defining the Model class for finite element analysis.
 
 Created: 2025/10/28 01:25:31
-Last modified: 2025/10/30 18:37:10
+Last modified: 2025/11/17 21:45:15
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 from .boundary_conditions import BoundaryConditions
 from .element_compatibility import validate_element_problem_compatibility
 from .element_properties import ElementProperties, validate_mesh_and_element_properties
+from .elements.element_registry import ELEMENTS_THAT_REQUIRE_MATERIAL
+from .materials import MaterialProperties
 from .mesh import Mesh
 from .problem import Problem
 from .setup_helpers import setup_dof_space_for_problem
@@ -54,6 +56,7 @@ class Model:
         """
         self.mesh = mesh
         self.problem = problem
+        self.materials: MaterialProperties = {}
 
         # Automatically create and configure DOF space based on problem
         self.dof_space = setup_dof_space_for_problem(problem, mesh.num_nodes)
@@ -79,7 +82,11 @@ class Model:
 
         Example:
             props = make_element_properties([
-                ("steel", ("bar_1D", {"E": 200e9, "A": 0.01})),
+                ("steel_bar", ElementProperty(
+                    kind="bar_1D",
+                    params={"A": 0.01},
+                    material="steel",
+                )),
             ])
             model.set_element_properties(props)
         """
@@ -112,6 +119,32 @@ class Model:
                 f"{self.problem.physics.name} ({self.problem.dimension.value}D). "
                 f"Cannot use these elements in this problem configuration."
             )
+
+        # Validation 3: Material presence for required elements
+        unique_labels = set(self.mesh.element_property_labels)
+
+        for label in unique_labels:
+            elem_prop = self.element_properties[label]
+
+            if elem_prop.kind in ELEMENTS_THAT_REQUIRE_MATERIAL:
+                if elem_prop.material is None:
+                    raise ModelValidationError(
+                        f"Element property '{label}' of type '{elem_prop.kind}' "
+                        f"requires a material but none was provided.\n"
+                        f"Use: ElementProperty(material='name')."
+                    )
+
+            if (
+                elem_prop.kind not in ELEMENTS_THAT_REQUIRE_MATERIAL
+                and elem_prop.material is not None
+            ):
+                print(
+                    f"Warning: Element property '{label}' of type '{elem_prop.kind}' "
+                    f"has a material assigned, but this element type does not use materials."
+                )
+
+    def set_materials(self, materials: MaterialProperties):
+        self.materials = materials
 
     def __str__(self) -> str:
         """Return a concise, human-readable summary of the model."""

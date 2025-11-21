@@ -3,7 +3,7 @@
 Quadrature rules for numerical integration in finite element analysis.
 
 Created: 2025/11/08 23:11:28
-Last modified: 2025/11/15 18:00:17
+Last modified: 2025/11/16 13:23:08
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -35,7 +35,7 @@ class GaussLegendre1D:
     """Gauss-Legendre quadrature for 1D line elements on [-1, 1].
 
     This is the optimal quadrature rule for polynomials on the interval [-1, 1].
-    An n-point rule integrates polynomials of degree ≤ 2n-1 exactly.
+    An n-point rule integrates polynomials of degree <= 2n-1 exactly.
 
     Args:
         order: Number of quadrature points (1, 2, 3, ...)
@@ -287,7 +287,7 @@ def get_quadrature_rule(
         if integration_scheme == "full":
             order = 1  # 1-point is the exact CST rule
         elif integration_scheme == "reduced":
-            order = 1  # same – CST has constant strain
+            order = 1  # same - CST has constant strain
         else:
             try:
                 order = int(integration_scheme)

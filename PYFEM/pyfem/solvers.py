@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/11/08 17:27:17
+Last modified: 2025/11/17 18:37:11
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -15,6 +15,7 @@ from scipy import sparse
 
 from .fem import assemble_global_stiffness_matrix
 from .model import Model
+from .solution import Solution
 
 
 class SolverState(Enum):
@@ -25,9 +26,20 @@ class SolverState(Enum):
 
 
 class LinearStaticSolver:
-    """Solves linear static finite element problems.
+    """
+    Solves linear static finite element problems (KU = F).
 
-    Assembles and solves the system of equations KU=F.
+    Workflow:
+        assemble_global_matrix()
+        apply_boundary_conditions()
+        solution = solve()
+
+    Usage:
+        solver = LinearStaticSolver(model)
+        solver.assemble_global_matrix()
+        solver.apply_boundary_conditions()
+        solution = solver.solve()  # Returns Solution object with reaction forces
+
     """
 
     def __init__(self, model: Model, use_sparse: bool = True):
@@ -41,18 +53,18 @@ class LinearStaticSolver:
             problem = Problem(Physics.MECHANICS, Dimension.D1)
             model = Model(mesh, problem)
             model.set_element_properties(element_properties)
-            model.boundary_conditions.prescribe_displacement(...)
+            model.bc.prescribe_displacement(...)
 
             solver = LinearStaticSolver(model)
         """
+        self.model = model
         self.mesh = model.mesh
         self.element_properties = model.element_properties
-
         # Registry-based BC system
-        self.bc = model.bc
-        self.registry = model.bc.registry
-
+        self.bc = model.bc  # registry wrapper
+        self.registry = model.bc.registry  # actual constraint registry
         self.dof_space = model.dof_space
+
         self.use_sparse = use_sparse
         self.state = SolverState.INITIALIZED
 
@@ -67,47 +79,45 @@ class LinearStaticSolver:
 
         self.global_force_vector = np.zeros(total_dofs)
 
-        # Will be computed by solve()
-        self.nodal_displacements: np.ndarray
+        # Solver statistics (populated in solve)
+        self._solver_stats: dict[str, int | float] = {}
 
-        # Performance metrics
-        self.system_size: int = 0
-        self.matrix_shape: tuple[int, int] = (0, 0)
-        self.num_matrix_entries: int = 0
-        self.matrix_size_bytes: int = 0
-        self.num_nonzero_entries: int = 0
-        self.sparsity_percentage: float = 0.0
-        self.solve_time: float = 0.0
-
+    # ------------------------------------------------------------
+    # State machine helper
+    # ------------------------------------------------------------
     def _ensure_state(self, expected: SolverState) -> None:
         if self.state != expected:
             raise RuntimeError(
-                f"Invalid solver state: expected {expected.name}, got {self.state.name}"
+                f"Solver in invalid state: expected {expected.name}, got {self.state.name}"
             )
 
+    # ------------------------------------------------------------
+    # Assembly
+    # ------------------------------------------------------------
     def assemble_global_matrix(self) -> None:
         """Constructs the system of equations KU=F."""
-
         self._ensure_state(SolverState.INITIALIZED)
 
         # Assemble the global stiffness matrix
         self.global_stiffness_matrix = assemble_global_stiffness_matrix(
-            self.mesh,
-            self.element_properties,
-            self.global_stiffness_matrix,
-            self.dof_space,
+            mesh=self.mesh,
+            element_properties=self.element_properties,
+            materials=self.model.materials,
+            global_stiffness_matrix=self.global_stiffness_matrix,
+            dof_space=self.dof_space,
             use_sparse=self.use_sparse,
         )
         # print("\n- Global stiffness matrix K:")
         # for row in self.global_stiffness_matrix:
         #     print(row)
-
         self.state = SolverState.ASSEMBLED
         return None
 
+    # ------------------------------------------------------------
+    # Boundary conditions
+    # ------------------------------------------------------------
     def apply_boundary_conditions(self) -> None:
         """Apply nodal forces from registry to global RHS vector."""
-
         self._ensure_state(SolverState.ASSEMBLED)
 
         # Pull Neumann forces from the registry
@@ -119,25 +129,34 @@ class LinearStaticSolver:
         self.state = SolverState.BOUNDARY_APPLIED
         return None
 
-    def solve(self) -> None:
-        """Solves the linear system KU=F using static condensation."""
+    # ------------------------------------------------------------
+    # Solve
+    # ------------------------------------------------------------
+    def solve(self, compute_reactions: bool = True) -> Solution:
+        """Solves the linear system KU = F by partitioning into free and prescribed DOFs (static condensation).
 
+        Args:
+            compute_reactions: Whether to compute reaction forces (default: True)
+
+        Returns:
+            Solution object containing nodal displacements, reactions, and statistics
+        """
         self._ensure_state(SolverState.BOUNDARY_APPLIED)
 
         K = self.global_stiffness_matrix
         F = self.global_force_vector
 
-        # Extract prescribed DOF information
+        # Extract Dirichlet info
         dirichlet = self.registry.get_dirichlet_values()
         prescribed_dofs = np.array(list(dirichlet.keys()), dtype=int)
         prescribed_vals = np.array(list(dirichlet.values()), dtype=float)
 
         # Identify free DOFs
-        all_dofs = np.arange(K.shape[0])
+        all_dofs = np.arange(self.dof_space.total_dofs)
         free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
 
         # Partition the system
-        if len(prescribed_dofs) > 0:
+        if prescribed_dofs.size > 0:
             K_ff = K[np.ix_(free_dofs, free_dofs)]
             K_fp = K[np.ix_(free_dofs, prescribed_dofs)]
             F_f = F[free_dofs] - K_fp @ prescribed_vals
@@ -145,91 +164,137 @@ class LinearStaticSolver:
             K_ff = K
             F_f = F[free_dofs]
 
-        start_time = time.time()
+        # Solve system
+        start = time.time()
 
         if self.use_sparse and sparse.isspmatrix(K):
-            # Sparse solver with static condensation
             U_free = sparse.linalg.spsolve(K_ff, F_f)
         else:
-            # Dense solver with static condensation
             U_free = np.linalg.solve(K_ff, F_f)
 
-        self.solve_time = time.time() - start_time
+        solve_time = time.time() - start
 
-        # Reconstruct full displacement vector
-        self.nodal_displacements = np.zeros(K.shape[0])
-        self.nodal_displacements[free_dofs] = U_free
-        if len(prescribed_dofs) > 0:
-            self.nodal_displacements[prescribed_dofs] = prescribed_vals
+        # Reconstruct global displacement vector
+        U = np.zeros_like(F)
+        U[free_dofs] = U_free
+        if prescribed_dofs.size > 0:
+            U[prescribed_dofs] = prescribed_vals
 
-        # print("\n- Nodal displacements U:")
-        # print(self.nodal_displacements)
+        # Compute reaction forces: R = K*u - f_applied
+        reactions = None
+        if compute_reactions:
+            reactions = self._compute_reactions(K, U, F, prescribed_dofs)
 
-        self._compute_statistics(K, free_dofs, prescribed_dofs)
+        # Solver statistics
+        self._compute_statistics(K, free_dofs, prescribed_dofs, solve_time)
 
         self.state = SolverState.SOLVED
 
-        return None
+        # Create and return Solution object
+        solution = Solution(
+            nodal_displacements=U,
+            reaction_forces=reactions,
+            dof_types=self.model.dof_space.global_dof_types,
+            solver_stats=self._solver_stats,
+        )
 
-    def _compute_statistics(self, K, free_dofs, prescribed_dofs) -> None:
-        """Computes solver statistics."""
+        return solution
+
+    # ------------------------------------------------------------
+    # Reaction forces
+    # ------------------------------------------------------------
+    def _compute_reactions(
+        self,
+        K: np.ndarray | sparse.spmatrix,
+        U: np.ndarray,
+        F: np.ndarray,
+        prescribed_dofs: np.ndarray,
+    ) -> np.ndarray:
+        """Compute reaction forces at constrained DOFs.
+
+        Reactions are computed as: R = K*u - f_applied
+
+        At free DOFs: R = 0 (equilibrium is satisfied by construction)
+        At prescribed DOFs: R != 0 (these are the reaction forces)
+
+        Args:
+            K: Global stiffness matrix
+            u: Nodal displacements (full vector)
+            f_applied: Applied force vector (full vector)
+            prescribed_dofs: Indices of prescribed DOFs
+
+        Returns:
+            Reaction force vector (same size as u)
+        """
+
+        # Reactions: R = K*u - f_applied
+        R = K @ U - F
+        free = np.setdiff1d(np.arange(len(U)), prescribed_dofs)
+
+        # Sanity check
+        tol = max(1e-12, 1e-8 * float(np.linalg.norm(K @ U)))
+        if np.any(np.abs(R[free]) > tol):
+            max_r = np.max(np.abs(R[free]))
+            print(f"Warning: residual at free DOFs too large: {max_r:e}")
+
+        return R
+
+    # ------------------------------------------------------------
+    # Statistics
+    # ------------------------------------------------------------
+    def _compute_statistics(
+        self, K, free_dofs, prescribed_dofs, solve_time: float
+    ) -> None:
+        """Computes solver statistics and stores them in _solver_stats."""
 
         if self.use_sparse and sparse.isspmatrix(K):
             # Total number of matrix entries
-            self.num_matrix_entries = K.shape[0] * K.shape[1]
-
+            num_entries = K.shape[0] * K.shape[1]
             # Matrix size in memory (bytes)
-            self.matrix_size_bytes = K.data.nbytes + K.indices.nbytes + K.indptr.nbytes
-
-            # Sparsity statistics
-            self.num_nonzero_entries = K.nnz  # Number of stored values, includes zeros
-            self.sparsity_percentage = (
-                1.0 - self.num_nonzero_entries / self.num_matrix_entries
-            ) * 100.0
+            matrix_size_bytes = K.data.nbytes + K.indices.nbytes + K.indptr.nbytes
+            # Number of stored values, includes zeros
+            nonzeros = K.nnz
         else:
             # Total number of matrix entries
-            self.num_matrix_entries = self.global_stiffness_matrix.size
-
+            num_entries = K.size
             # Matrix size in memory (bytes)
-            self.matrix_size_bytes = self.global_stiffness_matrix.nbytes
+            matrix_size_bytes = K.nbytes
+            # Number of non zero entries
+            nonzeros = int(np.count_nonzero(K))
 
-            # Sparsity statistics
-            self.num_nonzero_entries = int(
-                np.count_nonzero(self.global_stiffness_matrix)
-            )
-            self.sparsity_percentage = (
-                1.0 - self.num_nonzero_entries / self.num_matrix_entries
-            ) * 100.0
+        sparsity = (1.0 - nonzeros / num_entries) * 100.0
+        # Store statistics in dictionary
+        self._solver_stats = {
+            "system_size": self.dof_space.total_dofs,
+            "free_dofs": len(free_dofs),
+            "prescribed_dofs": len(prescribed_dofs),
+            "total_matrix_entries": num_entries,
+            "nonzero_entries": nonzeros,
+            "sparsity_percentage": sparsity,
+            "matrix_size_bytes": matrix_size_bytes,
+            "solve_time": solve_time,
+            "use_sparse": self.use_sparse,
+        }
 
-        # Common statistics
-
-        # System size (number of equations/unknowns)
-        self.system_size = self.dof_space.total_dofs
-        # Matrix dimensions (system_size x system_size)
-        self.matrix_shape = self.global_stiffness_matrix.shape
-
-        print(f"\n{'=' * 70}")
+        # Print statistics
+        print("\n" + "=" * 70)
         print("Solver Statistics")
-        print(f"{'=' * 70}")
+        print("=" * 70)
+        print(f"  System size (DOFs):           {self._solver_stats['system_size']}")
+        print(f"  Free DOFs:                    {self._solver_stats['free_dofs']:,}")
         print(
-            f"  Solver type:                  {'SPARSE' if self.use_sparse else 'DENSE'}"
+            f"  Prescribed DOFs:              {self._solver_stats['prescribed_dofs']:,}"
         )
-        print(f"  System size (DOFs):           {self.system_size}")
-        print(f"  Free DOFs:                    {len(free_dofs):,}")
-        print(f"  Prescribed DOFs:              {len(prescribed_dofs):,}")
         print(
-            f"  Matrix shape:                 {self.matrix_shape[0]} x {self.matrix_shape[1]}"
+            f"  Non-zero entries:             {self._solver_stats['nonzero_entries']:,}"
         )
-        print(f"  Total matrix entries:         {self.num_matrix_entries:,}")
-        print(f"  Non-zero entries:             {self.num_nonzero_entries:,}")
-        print(f"  Sparsity (% zeros):           {self.sparsity_percentage:.2f}%")
         print(
-            f"  Matrix memory usage:          {self.matrix_size_bytes:,} bytes ({self.matrix_size_bytes / 1024 / 1024:.2f} MiB)"
+            f"  Sparsity (% zeros):           {self._solver_stats['sparsity_percentage']:.2f}%"
         )
-        print(f"  Solution time:                {self.solve_time:.4f} seconds")
         print(
-            "  Note:                         Statistics for ORIGINAL matrix (before BCs)"
+            f"  Matrix memory usage:          {matrix_size_bytes / 1024 / 1024:.2f} MiB"
         )
-        print(f"{'=' * 70}")
+        print(f"  Solve time:                   {solve_time:.4f} s")
+        print("=" * 70)
 
         return None

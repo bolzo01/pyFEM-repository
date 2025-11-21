@@ -3,7 +3,7 @@
 Demonstrates detection of conflicting boundary conditions.
 
 Created: 2024/11/06 17:32:52
-Last modified: 2025/11/08 17:03:36
+Last modified: 2025/11/17 22:01:21
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -58,19 +58,27 @@ def main() -> np.ndarray:
         [8, 4],
     ]
 
-    # 2. Element properties
+    # 2. Materials
+    materials = pyfem.make_materials(
+        [
+            ("mate1", pyfem.LinearElastic1D(E=206000.0)),
+        ]
+    )
 
-    # Define element properties registry
+    # 3. Define element properties registry
     element_properties = pyfem.make_element_properties(
         [
-            ("bar", ("bar_2D", {"E": 206000.0, "A": 500.0})),
+            (
+                "bar",
+                pyfem.ElementProperty("bar_2D", {"A": 500.0}, material="mate1"),
+            ),
         ]
     )
 
     # Assign properties to elements
     element_property_labels = ["bar"] * num_elements
 
-    # 3. Mesh
+    # 4. Mesh
 
     # Create mesh
     mesh = pyfem.Mesh(
@@ -81,7 +89,7 @@ def main() -> np.ndarray:
         element_property_labels=element_property_labels,
     )
 
-    # 4. Create Model
+    # 5. Create Model
 
     problem = pyfem.Problem(
         pyfem.Physics.MECHANICS,
@@ -89,10 +97,11 @@ def main() -> np.ndarray:
     )
 
     model = pyfem.Model(mesh, problem)
+    model.set_materials(materials)
     model.set_element_properties(element_properties)
     print(model)
 
-    # 5. Boundary conditions
+    # 6. Boundary conditions
 
     # Dirichlet boundary conditions (prescribed displacements)
     model.bc.prescribe_displacement(0, pyfem.DOFType.U_X, 0.0)
@@ -121,16 +130,15 @@ def main() -> np.ndarray:
     solver.apply_boundary_conditions()
 
     # Solve for nodal displacements
-    solver.solve()
+    solution = solver.solve()
 
-    # POSTPROCESSING: Compute derived quantities
+    # POSTPROCESSING: Analyze results
 
     # Create postprocessor
     postprocessor = pyfem.PostProcessor(
-        model.mesh,
-        model.element_properties,
-        solver.global_stiffness_matrix,
-        solver.nodal_displacements,
+        model=model,
+        solution=solution,
+        global_stiffness_matrix=solver.global_stiffness_matrix,
         magnification_factor=100.0,
     )
 
@@ -141,9 +149,9 @@ def main() -> np.ndarray:
     postprocessor.undeformed_mesh()
     postprocessor.deformed_mesh()
 
-    print("Solution\n", solver.nodal_displacements)
+    print("Solution\n", solution.nodal_displacements)
 
-    return solver.nodal_displacements
+    return solution.nodal_displacements
 
 
 if __name__ == "__main__":

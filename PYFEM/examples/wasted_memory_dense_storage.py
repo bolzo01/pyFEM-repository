@@ -13,7 +13,7 @@ and records key performance metrics including:
 - The memory footprint of the dense matrix representation.
 
 Created: 2025/10/29 18:26:04
-Last modified: 2025/11/11 22:08:53
+Last modified: 2025/11/17 02:45:32
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -31,12 +31,13 @@ def data_gen() -> Generator[tuple[int, float, float, float], None, None]:
     for bays in range(5, 1000, 25):
         print(f"Processing bays = {bays}")
         start_time = time.time()
-        _, dofs, sparsity_percentage, matrix_size_bytes, _ = brown_truss.main(
-            bays,
-            use_sparse=False,
-        )
+        solution = brown_truss.main(bays, use_sparse=False)
+        stats = solution.solver_stats
+        dofs = int(stats["system_size"])
+        sparsity_percentage = float(stats["sparsity_percentage"])
+        matrix_size_bytes = stats["matrix_size_bytes"]
         total_time = time.time() - start_time
-        matrix_size_mib = matrix_size_bytes / (1024 * 1024)  # Convert bytes to MiB
+        matrix_size_mib = matrix_size_bytes / (1024 * 1024)
         yield dofs, sparsity_percentage, total_time, matrix_size_mib
 
 

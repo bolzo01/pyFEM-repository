@@ -3,7 +3,7 @@
 Module defining DOF types and DOF space management.
 
 Created: 2025/10/19 18:19:46
-Last modified: 2025/10/31 15:31:44
+Last modified: 2025/11/16 01:53:45
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -54,21 +54,35 @@ class DOFSpace:
 
     Entities are identified by tuples to support various use cases:
     - Mesh nodes: (node_id,)
-    - Embedded nodes: (label, node_id)
-    - GFEM/XFEM enriched DOFs: (node_id, enrichment_id)
+    - Embedded or auxiliary entities: (label, id)
     - Any other hierarchical identification scheme
 
+    Note:
+        Currently only standard DOF types (DOFType) are supported as DOF keys.
+
     Attributes:
-        active_dof_types: List of DOF types that are active in this problem
-        dofs: Mapping from entity key to a dict of {DOF type: global DOF index}
+        active_dof_types: List of DOFType values active in this problem
+        dofs: Mapping from entity key to a dict of {DOFType: global DOF index}
         _next_global_dof: Counter for assigning new global DOF indices
+        global_dof_types: Reverse map from global DOF index to the corresponding DOFType
     """
+
+    # -------------------------------------------------------------------------
+    # __slots__ is a memory-optimization feature in Python
+    # Each DOFSpace instance will only have these four attributes:
+    __slots__ = [
+        "active_dof_types",
+        "dofs",
+        "_next_global_dof",
+        "global_dof_types",
+    ]
 
     # -------------------------------------------------------------------------
     def __init__(self) -> None:
         self.active_dof_types: list[DOFType] = []
-        self.dofs: dict[EntityKey, dict[DOFType | str, int]] = {}
-        self._next_global_dof = 0
+        self.dofs: dict[EntityKey, dict[DOFType, int]] = {}
+        self._next_global_dof: int = 0
+        self.global_dof_types: list[DOFType] = []
 
     # -------------------------------------------------------------------------
     def activate_dof_types(self, *dof_types: DOFType) -> None:
@@ -105,13 +119,14 @@ class DOFSpace:
         if dof_types is None:
             dof_types = self.active_dof_types
 
-        entity_key = (node,)
-        if entity_key not in self.dofs:
-            self.dofs[entity_key] = {}
+        key: EntityKey = (node,)
+        node_map = self.dofs.setdefault(key, {})
 
         for dof_type in dof_types:
-            if dof_type not in self.dofs[entity_key]:
-                self.dofs[entity_key][dof_type] = self._next_global_dof
+            if dof_type not in node_map:
+                gid = self._next_global_dof
+                node_map[dof_type] = gid
+                self.global_dof_types.append(dof_type)
                 self._next_global_dof += 1
 
     # -------------------------------------------------------------------------
@@ -171,18 +186,29 @@ class DOFSpace:
         Returns:
             list[int]: The list of global DOF numbers corresponding to the local DOFs.
         """
-        dof_mapping = []
+        mapping: list[int] = []
+        push = mapping.append
+
         for node in nodes:
-            for dof_type in self.active_dof_types:
-                global_dof = self.get_global_dof(node, dof_type)
-                if global_dof is not None:
-                    dof_mapping.append(global_dof)
-                else:
-                    raise ValueError(f"DOF {dof_type} at node {node} is not assigned.")
-        return dof_mapping
+            key = (node,)
+            if key not in self.dofs:
+                raise KeyError(f"Node {node} has no DOFs assigned.")
+            for dof in self.active_dof_types:
+                if dof not in self.dofs[key]:
+                    raise ValueError(f"DOF {dof} at node {node} is not assigned.")
+                push(self.dofs[key][dof])
+        return mapping
 
     # -------------------------------------------------------------------------
     @property
     def total_dofs(self) -> int:
         """Total number of DOFs in the system."""
         return self._next_global_dof
+
+    # -------------------------------------------------------------------------
+    def group_dofs_by_type(self) -> dict[DOFType, list[int]]:
+        """Return a dictionary mapping each DOFType to the list of global DOF indices of that type."""
+        groups: dict[DOFType, list[int]] = {}
+        for gid, dof in enumerate(self.global_dof_types):
+            groups.setdefault(dof, []).append(gid)
+        return groups

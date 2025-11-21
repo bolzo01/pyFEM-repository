@@ -3,7 +3,7 @@
 Numerical integration examples.
 
 Created: 2025/11/09 15:04:23
-Last modified: 2025/11/10 09:51:14
+Last modified: 2025/11/16 13:22:20
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -21,7 +21,7 @@ class NumericFunction(Protocol):
     def __call__(self, x: np.ndarray) -> np.ndarray: ...
 
 
-# --- Vectorized Gauss–Legendre integration
+# --- Vectorized Gauss-Legendre integration
 def integrate_1d_vectorized(
     func: NumericFunction,
     a: float,
@@ -44,7 +44,7 @@ class ScalarFunction(Protocol):
     def __call__(self, x: float) -> float: ...
 
 
-# --- Loop-based Gauss–Legendre integration
+# --- Loop-based Gauss-Legendre integration
 def integrate_1d_loops(
     func: ScalarFunction,
     a: float,
@@ -100,9 +100,9 @@ def main() -> None:
     print("=" * 70)
 
     for a, b in intervals:
-        print(f"\n{'─' * 70}")
+        print(f"\n{'-' * 70}")
         print(f"Integrating f(x) = x^2 + 1 over [{a}, {b}]")
-        print(f"{'─' * 70}")
+        print(f"{'-' * 70}")
 
         for order in orders:
             quadrature_rule = GaussLegendre1D(order=order)

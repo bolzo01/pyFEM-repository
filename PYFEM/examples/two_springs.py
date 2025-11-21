@@ -3,7 +3,7 @@
 Solve a series combination of two 1D springs.
 
 Created: 2025/08/02 17:32:52
-Last modified: 2025/11/06 22:33:12
+Last modified: 2025/11/17 22:06:05
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -30,20 +30,33 @@ def main() -> np.ndarray:
         [2, 0],
     ]
 
-    # 2. Element properties
+    # 2. Materials
+    materials = pyfem.make_materials([])
 
-    # Define element properties registry
+    # 3. Define element properties registry
     element_properties = pyfem.make_element_properties(
         [
-            ("soft", ("spring_1D", {"k": 1.0})),
-            ("stiff", ("spring_1D", {"k": 2.0})),
+            (
+                "soft",
+                pyfem.ElementProperty(
+                    kind="spring_1D",
+                    params={"k": 1.0},
+                ),
+            ),
+            (
+                "stiff",
+                pyfem.ElementProperty(
+                    kind="spring_1D",
+                    params={"k": 2.0},
+                ),
+            ),
         ]
     )
 
     # Assign properties to elements
     element_property_labels = ["soft", "stiff"]
 
-    # 3. Mesh
+    # 4. Mesh
 
     # Create mesh
     mesh = pyfem.Mesh(
@@ -62,7 +75,7 @@ def main() -> np.ndarray:
     for tag, node_set in mesh.node_sets.items():
         print(f"  {node_set}")
 
-    # 4. Create Model
+    # 5. Create Model
 
     problem = pyfem.Problem(
         pyfem.Physics.MECHANICS,
@@ -70,10 +83,11 @@ def main() -> np.ndarray:
     )
 
     model = pyfem.Model(mesh, problem)
+    model.set_materials(materials)
     model.set_element_properties(element_properties)
     print(model)
 
-    # 5. Boundary conditions
+    # 6. Boundary conditions
 
     # Dirichlet boundary conditions (prescribed displacements)
     model.bc.prescribe_displacement("left_end", pyfem.DOFType.U_X, 0.0)
@@ -96,23 +110,22 @@ def main() -> np.ndarray:
     solver.apply_boundary_conditions()
 
     # Solve for nodal displacements
-    solver.solve()
+    solution = solver.solve()
 
-    # POSTPROCESSING: Compute derived quantities
+    # POSTPROCESSING: Analyze results
 
     # Create postprocessor
     postprocessor = pyfem.PostProcessor(
-        model.mesh,
-        model.element_properties,
-        solver.global_stiffness_matrix,
-        solver.nodal_displacements,
+        model=model,
+        solution=solution,
+        global_stiffness_matrix=solver.global_stiffness_matrix,
     )
 
     # - Compute strain energy at element and system levels
     postprocessor.compute_strain_energy_local()
     postprocessor.compute_strain_energy_global()
 
-    return solver.nodal_displacements
+    return solution.nodal_displacements
 
 
 if __name__ == "__main__":

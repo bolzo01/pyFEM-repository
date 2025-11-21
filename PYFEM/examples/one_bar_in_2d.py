@@ -3,7 +3,7 @@
 Solve a bar in tension (in 2D).
 
 Created: 2025/10/31 14:34:37
-Last modified: 2025/11/06 22:30:23
+Last modified: 2025/11/17 21:59:50
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -30,19 +30,27 @@ def main() -> np.ndarray:
         [0, 1],
     ]
 
-    # 2. Element properties
+    # 2. Materials
+    materials = pyfem.make_materials(
+        [
+            ("marble", pyfem.LinearElastic1D(E=23.2)),
+        ]
+    )
 
-    # Define element properties registry
+    # 3. Define element properties registry
     element_properties = pyfem.make_element_properties(
         [
-            ("bar", ("bar_2D", {"E": 23.2, "A": 7.0})),
+            (
+                "bar",
+                pyfem.ElementProperty("bar_2D", {"A": 7.0}, material="marble"),
+            ),
         ]
     )
 
     # Assign properties to elements
     element_property_labels = ["bar"]
 
-    # 3. Mesh
+    # 4. Mesh
 
     # Create mesh
     mesh = pyfem.Mesh(
@@ -61,7 +69,7 @@ def main() -> np.ndarray:
     for tag, node_set in mesh.node_sets.items():
         print(f"  {node_set}")
 
-    # 4. Create Model
+    # 5. Create Model
 
     problem = pyfem.Problem(
         pyfem.Physics.MECHANICS,
@@ -69,10 +77,11 @@ def main() -> np.ndarray:
     )
 
     model = pyfem.Model(mesh, problem)
+    model.set_materials(materials)
     model.set_element_properties(element_properties)
     print(model)
 
-    # 5. Boundary conditions
+    # 6. Boundary conditions
 
     # Dirichlet boundary conditions (prescribed displacements)
     model.bc.prescribe_displacement("left_end", pyfem.DOFType.U_X, 0.0)
@@ -97,22 +106,21 @@ def main() -> np.ndarray:
     solver.apply_boundary_conditions()
 
     # Solve for nodal displacements
-    solver.solve()
+    solution = solver.solve()
 
-    # POSTPROCESSING: Compute derived quantities
+    # POSTPROCESSING: Analyze results
 
     # Create postprocessor
     postprocessor = pyfem.PostProcessor(
-        model.mesh,
-        model.element_properties,
-        solver.global_stiffness_matrix,
-        solver.nodal_displacements,
+        model=model,
+        solution=solution,
+        global_stiffness_matrix=solver.global_stiffness_matrix,
     )
 
     # Compute strain energy
     postprocessor.compute_strain_energy_global()
 
-    return solver.nodal_displacements
+    return solution.nodal_displacements
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 Test displacement solution for Brown truss example.
 
 Created: 2025/10/31 15:00:03
-Last modified: 2025/11/08 10:27:09
+Last modified: 2025/11/14 01:31:10
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -18,7 +18,10 @@ def test_brown_truss_output():
     os.environ["Show_TrussPlot"] = "0"
 
     expected_displacement = -0.0019066054231800654
-    computed_displacement, _, _, _, _ = main(bays=10)
+    solution = main(bays=10)
+    dof = 23
+    computed_displacement = solution.nodal_displacements[dof]
+
     np.testing.assert_allclose(
         computed_displacement,
         expected_displacement,
@@ -34,8 +37,12 @@ def test_brown_truss_sparse_vs_dense():
     # Set the environment variable to prevent plot display
     os.environ["Show_TrussPlot"] = "0"
 
-    computed_displacement_s, _, _, _, _ = main(bays=10, use_sparse=True)
-    computed_displacement_d, _, _, _, _ = main(bays=10, use_sparse=False)
+    solution_s = main(bays=10, use_sparse=True)
+    solution_d = main(bays=10, use_sparse=False)
+
+    computed_displacement_s = solution_s.nodal_displacements
+    computed_displacement_d = solution_d.nodal_displacements
+
     np.testing.assert_allclose(
         computed_displacement_s,
         computed_displacement_d,

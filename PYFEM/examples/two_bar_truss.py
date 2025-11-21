@@ -3,7 +3,7 @@
 Two-bar truss - Example 2 in Trusses.pdf.
 
 Created: 2025/10/31 14:34:37
-Last modified: 2025/11/06 22:34:19
+Last modified: 2025/11/18 00:17:49
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -36,19 +36,27 @@ def main() -> np.ndarray:
         [1, 2],
     ]
 
-    # 2. Element properties
+    # 2. Materials
+    materials = pyfem.make_materials(
+        [
+            ("mate1", pyfem.LinearElastic1D(E=3)),
+        ]
+    )
 
-    # Define element properties registry
+    # 3. Define element properties registry
     element_properties = pyfem.make_element_properties(
         [
-            ("bar", ("bar_2D", {"E": 3.0, "A": 2.0})),
+            (
+                "bar",
+                pyfem.ElementProperty("bar_2D", {"A": 2.0}, material="mate1"),
+            ),
         ]
     )
 
     # Assign properties to elements
     element_property_labels = ["bar"] * 2
 
-    # 3. Mesh
+    # 4. Mesh
 
     # Create mesh
     mesh = pyfem.Mesh(
@@ -59,7 +67,7 @@ def main() -> np.ndarray:
         element_property_labels=element_property_labels,
     )
 
-    # 4. Create Model
+    # 5. Create Model
 
     problem = pyfem.Problem(
         pyfem.Physics.MECHANICS,
@@ -67,10 +75,11 @@ def main() -> np.ndarray:
     )
 
     model = pyfem.Model(mesh, problem)
+    model.set_materials(materials)
     model.set_element_properties(element_properties)
     print(model)
 
-    # 5. Boundary conditions
+    # 6. Boundary conditions
 
     # Dirichlet boundary conditions (prescribed displacements)
     model.bc.prescribe_displacement(0, pyfem.DOFType.U_X, 0.0)
@@ -97,22 +106,31 @@ def main() -> np.ndarray:
     solver.apply_boundary_conditions()
 
     # Solve for nodal displacements
-    solver.solve()
+    solution = solver.solve()
 
-    # POSTPROCESSING: Compute derived quantities
+    # POSTPROCESSING: Analyze results
+
+    # Reactions
+    solution.print_reactions(model.dof_space)
+
+    # Check global equilibrium
+    solution.check_equilibrium(solver, tolerance=1e-8, verbose=True)
 
     # Create postprocessor
     postprocessor = pyfem.PostProcessor(
-        model.mesh,
-        model.element_properties,
-        solver.global_stiffness_matrix,
-        solver.nodal_displacements,
+        model=model,
+        solution=solution,
+        global_stiffness_matrix=solver.global_stiffness_matrix,
     )
 
     # Compute strain energy
     postprocessor.compute_strain_energy_global()
 
-    return solver.nodal_displacements
+    postprocessor.compute_element_stresses()
+
+    print("stress", solution.element_stresses)
+
+    return solution.nodal_displacements
 
 
 if __name__ == "__main__":

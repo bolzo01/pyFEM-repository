@@ -3,7 +3,7 @@
 Test comprehensive model validation.
 
 Created: 2025/10/29 19:27:44
-Last modified: 2025/10/30 18:49:27
+Last modified: 2025/11/17 21:53:20
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -27,17 +27,39 @@ def test_valid_model():
         element_property_labels=["bar", "spring"],
     )
 
-    # Define compatible 1D elements
+    # Materials
+    materials = pyfem.make_materials(
+        [
+            ("steel", pyfem.LinearElastic1D(E=200e9)),
+        ]
+    )
+
+    # Element properties
     element_properties = pyfem.make_element_properties(
         [
-            ("bar", ("bar_1D", {"E": 200e9, "A": 0.01})),
-            ("spring", ("spring_1D", {"k": 1000.0})),
+            (
+                "bar",
+                pyfem.ElementProperty(
+                    kind="bar_1D",
+                    params={"A": 0.01},
+                    material="steel",
+                ),
+            ),
+            (
+                "spring",
+                pyfem.ElementProperty(
+                    kind="spring_1D",
+                    params={"k": 1000.0},
+                    # springs do not need a material
+                ),
+            ),
         ]
     )
 
     # Create model
     problem = pyfem.Problem(pyfem.Physics.MECHANICS, pyfem.Dimension.D1)
     model = pyfem.Model(mesh, problem)
+    model.set_materials(materials)
 
     try:
         model.set_element_properties(element_properties)
@@ -67,17 +89,40 @@ def test_incompatible_elements():
         element_property_labels=["bar", "quad"],
     )
 
-    # Define incompatible elements (quad4 is 2D, but problem is 1D)
+    # Materials
+    materials = pyfem.make_materials(
+        [
+            ("steel", pyfem.LinearElastic1D(E=200e9)),
+        ]
+    )
+
+    # Define elements:
+    # - bar_1D: 1D mechanical
+    # - quad4 : 2D mechanical
     element_properties = pyfem.make_element_properties(
         [
-            ("bar", ("bar_1D", {"E": 200e9, "A": 0.01})),
-            ("quad", ("quad4", {"E": 200e9, "nu": 0.3})),
+            (
+                "bar",
+                pyfem.ElementProperty(
+                    kind="bar_1D",
+                    params={"A": 0.01},
+                    material="steel",
+                ),
+            ),
+            (
+                "quad",
+                pyfem.ElementProperty(
+                    kind="quad4",
+                    params={"E": 200e9, "nu": 0.3},
+                ),
+            ),
         ]
     )
 
     # Create model
     problem = pyfem.Problem(pyfem.Physics.MECHANICS, pyfem.Dimension.D1)
     model = pyfem.Model(mesh, problem)
+    model.set_materials(materials)
 
     try:
         model.set_element_properties(element_properties)
@@ -104,16 +149,31 @@ def test_missing_parameters():
         element_property_labels=["bar", "bar"],
     )
 
-    # Define element with missing parameter (A is missing)
+    # Materials
+    materials = pyfem.make_materials(
+        [
+            ("steel", pyfem.LinearElastic1D(E=200e9)),
+        ]
+    )
+
+    # Define element with missing required parameter:
     element_properties = pyfem.make_element_properties(
         [
-            ("bar", ("bar_1D", {"E": 200e9})),  # Missing "A" parameter!
+            (
+                "bar",
+                pyfem.ElementProperty(
+                    kind="bar_1D",
+                    params={},  # Missing "A" parameter!
+                    material="steel",
+                ),
+            ),
         ]
     )
 
     # Create model
     problem = pyfem.Problem(pyfem.Physics.MECHANICS, pyfem.Dimension.D1)
     model = pyfem.Model(mesh, problem)
+    model.set_materials(materials)
 
     try:
         model.set_element_properties(element_properties)

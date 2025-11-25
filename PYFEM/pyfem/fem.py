@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/22 00:18:23
+Last modified: 2025/11/25 19:14:04
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -82,22 +82,22 @@ def assemble_global_stiffness_matrix(
             L = x3 - x1
 
             # Bar stiffness matrix
-            k_e = (E * A) / (3 * L)
+            k_e = (E * A) / (3.0 * L)
             # Spring stiffness matrix
-            k_s = (K * L) / 30
+            k_s = (K * L) / 30.0
 
             # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
             local_stiffness_matrix = np.array(
                 [
-                    [7 * k_e, -8 * k_e, k_e],
-                    [-8 * k_e, 16 * k_e, -8 * k_e],
-                    [1 * k_e, -8 * k_e, 7 * k_e],
+                    [7.0 * k_e, -8.0 * k_e, 1.0 * k_e],
+                    [-8.0 * k_e, 16.0 * k_e, -8.0 * k_e],
+                    [1.0 * k_e, -8.0 * k_e, 7.0 * k_e],
                 ]
             ) + np.array(
                 [
-                    [4 * k_s, 2 * k_s, -1 * k_s],
-                    [2 * k_s, 16 * k_s, 2 * k_s],
-                    [-1 * k_s, 2 * k_s, 4 * k_s],
+                    [4.0 * k_s, 2.0 * k_s, -1.0 * k_s],
+                    [2.0 * k_s, 16.0 * k_s, 2.0 * k_s],
+                    [-1.0 * k_s, 2.0 * k_s, 4.0 * k_s],
                 ]
             )
 

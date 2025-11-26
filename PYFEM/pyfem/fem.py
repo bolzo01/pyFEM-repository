@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/25 19:14:04
+Last modified: 2025/11/26 15:28:04
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -49,7 +49,7 @@ def assemble_global_stiffness_matrix(
         elif elem_prop.kind == "bar_1D":
             E = param(elem_prop, "E", float)
             A = param(elem_prop, "A", float)
-            K = param(elem_prop, "k", float)
+            k_param = param(elem_prop, "k", float)
 
             # Get element nodes and compute length
             element_nodes = element_connectivity[element_index]
@@ -61,17 +61,17 @@ def assemble_global_stiffness_matrix(
             # Bar stiffness matrix
             k_e = (E * A) / L
             # Spring stiffness matrix
-            k_s = K * L
+            k_s = k_param * L
 
             # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
             local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]]) + np.array(
                 [[(1 / 3) * k_s, (1 / 6) * k_s], [(1 / 6) * k_s, (1 / 3) * k_s]]
             )
 
-        elif elem_prop.kind == "bar3_1D_":
+        elif elem_prop.kind == "bar3_1D":
             E = param(elem_prop, "E", float)
             A = param(elem_prop, "A", float)
-            K = param(elem_prop, "k", float)
+            k_param = param(elem_prop, "k", float)
 
             # Get element nodes and compute length
             element_nodes = element_connectivity[element_index]
@@ -84,7 +84,7 @@ def assemble_global_stiffness_matrix(
             # Bar stiffness matrix
             k_e = (E * A) / (3.0 * L)
             # Spring stiffness matrix
-            k_s = (K * L) / 30.0
+            k_s = (k_param * L) / 30.0
 
             # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
             local_stiffness_matrix = np.array(

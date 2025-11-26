@@ -6,7 +6,7 @@ Defines element types with their constitutive models, material parameters,
 and discretization metadata.
 
 Created: 2025/10/19 00:16:39
-Last modified: 2025/11/21 23:48:08
+Last modified: 2025/11/26 15:07:06
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 

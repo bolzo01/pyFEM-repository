@@ -1,0 +1,7 @@
+# Exclude OS cruft and build artifacts from git archive exports
+.DS_Store         export-ignore
+**/.DS_Store      export-ignore
+__pycache__/      export-ignore
+**/__pycache__/   export-ignore
+.mypy_cache/      export-ignore
+**/.mypy_cache/   export-ignore

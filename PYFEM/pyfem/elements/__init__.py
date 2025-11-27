@@ -3,7 +3,7 @@
 Element base class, registry, and all concrete finite elements.
 
 Created: 2025/11/15 19:28:51
-Last modified: 2025/11/17 02:12:58
+Last modified: 2025/11/21 21:33:15
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -16,6 +16,7 @@ from .bar_1d import Bar1D
 from .bar_2d import Bar2D
 from .element_registry import create_element
 from .spring_1d import Spring1D
+from .triangle import Triangle
 
 __all__ = [
     "Bar3_1D",
@@ -23,4 +24,5 @@ __all__ = [
     "Bar2D",
     "create_element",
     "Spring1D",
+    "Triangle",
 ]

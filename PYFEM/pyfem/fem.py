@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/17 22:06:55
+Last modified: 2025/11/21 23:12:07
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -48,7 +48,7 @@ def assemble_global_stiffness_matrix(
             elem_prop = element_properties[label]
 
             # Instantiate the element object through the element registry
-            elem = create_element(elem_prop)
+            elem = create_element(elem_prop, element_index)
 
             # Get the indices of the mesh nodes that belong to this element
             element_nodes = element_connectivity[element_index]
@@ -105,7 +105,7 @@ def assemble_global_stiffness_matrix(
             elem_prop = element_properties[label]
 
             # Instantiate the element object through the element registry
-            elem = create_element(elem_prop)
+            elem = create_element(elem_prop, element_index)
 
             # Get the indices of the mesh nodes that belong to this element
             element_nodes = element_connectivity[element_index]

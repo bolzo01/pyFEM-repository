@@ -3,7 +3,7 @@
 Registry for finite-element classes and factory helpers.
 
 Created: 2025/11/15 19:33:25
-Last modified: 2025/11/17 22:15:57
+Last modified: 2025/11/23 02:03:49
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -16,6 +16,8 @@ ELEMENTS_THAT_REQUIRE_MATERIAL = {
     "bar_1D",
     "bar3_1D",
     "bar_2D",
+    "triangle",
+    "tetra",
     # "spring_1D", # doesn't require material properties (k is a parameter)
 }
 
@@ -28,11 +30,13 @@ def register_element(kind):
     return decorator
 
 
-def create_element(elem_prop: ElementProperty):
+def create_element(elem_prop: ElementProperty, element_index: int | None = None):
     kind = elem_prop.kind
     try:
         cls = ELEMENT_REGISTRY[kind]
     except KeyError:
         known = ", ".join(ELEMENT_REGISTRY.keys())
         raise ValueError(f"Unknown element kind '{kind}'.\n Known kinds: {known}")
-    return cls(elem_prop.params, elem_prop.meta)
+    elem = cls(elem_prop.params, elem_prop.meta)
+    elem.element_index = element_index
+    return elem

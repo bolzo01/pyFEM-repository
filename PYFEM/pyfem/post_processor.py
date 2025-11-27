@@ -3,7 +3,7 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2025/11/17 23:57:05
+Last modified: 2025/11/21 23:13:04
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -175,7 +175,7 @@ class PostProcessor:
             elem_prop = self.model.element_properties[label]
 
             # Element instance
-            element = create_element(elem_prop)
+            element = create_element(elem_prop, e)
 
             # Node coordinates
             elem_nodes = mesh.element_connectivity[e]

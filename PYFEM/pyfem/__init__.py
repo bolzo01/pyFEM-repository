@@ -3,7 +3,7 @@
 PyFEM package initialization.
 
 Created: 2025/10/25 19:28:51
-Last modified: 2025/11/17 18:01:29
+Last modified: 2025/11/23 22:27:15
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -13,7 +13,7 @@ from .element_compatibility import (
     is_element_compatible_with_problem,
 )
 from .element_properties import ElementProperty, make_element_properties
-from .materials import LinearElastic1D
+from .materials import LinearElastic1D, LinearElastic2D, LinearElastic3D
 from .materials.material_registry import make_materials
 from .mesh import Mesh
 from .model import Model, ModelValidationError
@@ -22,6 +22,7 @@ from .problem import Dimension, Physics, Problem
 from .solution import Solution
 from .solvers import LinearStaticSolver
 from .step import ModelState, ProcedureType, Step
+from .vtk_export import VTKWriter
 
 __all__ = [
     "DOFType",
@@ -30,6 +31,8 @@ __all__ = [
     "make_element_properties",
     "ElementProperty",
     "LinearElastic1D",
+    "LinearElastic2D",
+    "LinearElastic3D",
     "make_materials",
     "Mesh",
     "Model",
@@ -43,4 +46,5 @@ __all__ = [
     "ModelState",
     "ProcedureType",
     "Step",
+    "VTKWriter",
 ]

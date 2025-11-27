@@ -6,7 +6,7 @@ This module implements the FiniteElement abstract base class,
 encapsulating the common operations needed in finite element analysis.
 
 Created: 2025/11/16 21:18:34
-Last modified: 2025/11/17 22:16:01
+Last modified: 2025/11/23 18:44:04
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -46,6 +46,8 @@ class FiniteElement(ABC):
     override the default B-matrix or stiffness implementations when closed-form
     expressions are available.
     """
+
+    element_index: int | None = None
 
     # Basic properties
 

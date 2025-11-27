@@ -28,7 +28,7 @@ The registry is built by calling:
     ])
 
 Created: 2025/10/19 00:16:39
-Last modified: 2025/11/17 21:50:44
+Last modified: 2025/11/23 00:05:26
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -44,7 +44,7 @@ class ElementProperty:
     """
 
     kind: str
-    params: dict[str, object]
+    params: dict[str, object] = field(default_factory=dict)
     meta: dict[str, object] = field(default_factory=dict)
     material: str | None = None
 
@@ -142,6 +142,8 @@ REQUIRED_PARAMS: dict[str, set[str]] = {
     "bar_1D": {"A"},
     "bar3_1D": {"A"},
     "bar_2D": {"A"},
+    "triangle": {"t"},
+    "tetra": set(),
     # "beam_1D": {"A", "I"},
 }
 

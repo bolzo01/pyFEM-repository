@@ -3,7 +3,7 @@
 Registry for finite-element classes and factory helpers.
 
 Created: 2025/11/15 19:33:25
-Last modified: 2025/11/21 23:10:39
+Last modified: 2025/11/29 12:27:44
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -17,6 +17,7 @@ ELEMENTS_THAT_REQUIRE_MATERIAL = {
     "bar3_1D",
     "bar_2D",
     "triangle",
+    "tetra",
     # "spring_1D", # doesn't require material properties (k is a parameter)
 }
 

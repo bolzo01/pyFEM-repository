@@ -3,7 +3,7 @@
 PyFEM package initialization.
 
 Created: 2025/10/25 19:28:51
-Last modified: 2025/11/21 18:32:51
+Last modified: 2025/11/22 23:52:52
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -13,7 +13,7 @@ from .element_compatibility import (
     is_element_compatible_with_problem,
 )
 from .element_properties import ElementProperty, make_element_properties
-from .materials import LinearElastic1D, LinearElastic2D
+from .materials import LinearElastic1D, LinearElastic2D, LinearElastic3D
 from .materials.material_registry import make_materials
 from .mesh import Mesh
 from .model import Model, ModelValidationError
@@ -31,6 +31,7 @@ __all__ = [
     "ElementProperty",
     "LinearElastic1D",
     "LinearElastic2D",
+    "LinearElastic3D",
     "make_materials",
     "Mesh",
     "Model",

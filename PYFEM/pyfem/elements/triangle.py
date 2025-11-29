@@ -3,7 +3,7 @@
 Class for 3-node constant-strain triangle element (CST).
 
 Created: 2025/11/17 01:03:57
-Last modified: 2025/11/21 23:27:27
+Last modified: 2025/11/23 19:08:48
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -45,6 +45,10 @@ class Triangle(FiniteElement):
         if x_nodes.shape != (3, 2):
             raise ValueError(
                 f"Triangle expects x_nodes of shape (3, 2), got {x_nodes.shape}"
+            )
+        if material is None:
+            raise ValueError(
+                f"Triangle element {self.element_index}: material was not provided."
             )
 
         t = self.t

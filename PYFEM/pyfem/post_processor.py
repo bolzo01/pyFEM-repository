@@ -175,7 +175,7 @@ class PostProcessor:
             elem_prop = self.model.element_properties[label]
 
             # Element instance
-            element = create_element(elem_prop, element_index=e)
+            element = create_element(elem_prop, e)
 
             # Node coordinates
             elem_nodes = mesh.element_connectivity[e]

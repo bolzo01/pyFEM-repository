@@ -1,12 +1,21 @@
 #!/usr/bin/env python
 """
-Patch test for CST triangular elements.
+Patch test for tetrahedral elements: Steel cube under uniform pressure.
 
-Problem 7.20 in "The Finite Element Method: Its Basis and Fundamentals", Seventh Edition, by
-Zienkiewicz, Taylor, Zhu (2013).
+The problem is simplified using symmetry, analyzing only one quarter of the
+2 cm x 2 cm x 2 cm cube (i.e., 1 cm x 1 cm x 2 cm) with tetrahedral elements.
 
-Created: 2025/11/21 18:04:29
-Last modified: 2025/11/21 23:43:27
+Material properties:
+- Young's modulus: 210 GPa = 2.1e5 N/mm^2
+- Poisson's ratio: 0.3
+
+Applied load:
+- Uniform pressure: p = 300 MPa = 300 N/mm^2
+
+Units: mm, N, MPa = N/mm^2
+
+Created: 2025/11/22 23:16:15
+Last modified: 2025/11/23 19:23:41
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -21,34 +30,41 @@ def main() -> np.ndarray:
     # 1. Geometry and discretization
 
     # Problem parameters
-    num_nodes = 4
-    num_elements = 2
+    num_nodes = 8
+    num_elements = 6
 
     # Nodal coordinates
     points = np.array(
         [
-            [0.0, 0.0],
-            [6.0, 0.0],
-            [6.0, 5.0],
-            [0.0, 5.0],
+            [10.0, 10.0, 0.0],
+            [0.0, 10.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [10.0, 0.0, 0.0],
+            [10.0, 10.0, 20.0],
+            [0.0, 10.0, 20.0],
+            [0.0, 0.0, 20.0],
+            [10.0, 0.0, 20.0],
         ]
     )
 
     # Element connectivity (which nodes belong to each element)
     element_connectivity = [
-        [0, 1, 3],
-        [1, 2, 3],
+        [0, 1, 2, 6],
+        [0, 5, 1, 6],
+        [0, 4, 5, 6],
+        [0, 7, 4, 6],
+        [0, 3, 7, 6],
+        [0, 2, 3, 6],
     ]
 
     # 2. Materials
     materials = pyfem.make_materials(
         [
             (
-                "mate1",
-                pyfem.LinearElastic2D(
-                    E=200000.0,
+                "steel",
+                pyfem.LinearElastic3D(
+                    E=2.1e5,
                     nu=0.3,
-                    formulation="plane_stress",
                 ),
             ),
         ]
@@ -57,19 +73,12 @@ def main() -> np.ndarray:
     # 3. Define element properties registry
     element_properties = pyfem.make_element_properties(
         [
-            (
-                "t3",
-                pyfem.ElementProperty(
-                    "triangle",
-                    {"t": 1.0},
-                    material="mate1",
-                ),
-            ),
+            ("t4", pyfem.ElementProperty("tetra", material="steel")),
         ]
     )
 
     # Assign properties to elements
-    element_property_labels = ["t3"] * num_elements
+    element_property_labels = ["t4"] * num_elements
 
     # 4. Mesh
 
@@ -86,7 +95,7 @@ def main() -> np.ndarray:
 
     problem = pyfem.Problem(
         pyfem.Physics.MECHANICS,
-        pyfem.Dimension.D2,
+        pyfem.Dimension.D3,
     )
 
     model = pyfem.Model(mesh, problem)
@@ -97,14 +106,24 @@ def main() -> np.ndarray:
     # 6. Boundary conditions
 
     # Dirichlet boundary conditions (prescribed displacements)
-    model.bc.prescribe_displacement(0, pyfem.DOFType.U_X, 0.0)
-    model.bc.prescribe_displacement(0, pyfem.DOFType.U_Y, 0.0)
-    model.bc.prescribe_displacement(1, pyfem.DOFType.U_Y, 0.0)
-    model.bc.prescribe_displacement(3, pyfem.DOFType.U_X, 0.0)
+    model.bc.prescribe_displacement(0, pyfem.DOFType.U_Z, 0.0)
+    model.bc.prescribe_displacement(1, pyfem.DOFType.U_Z, 0.0)
+    model.bc.prescribe_displacement(2, pyfem.DOFType.U_Z, 0.0)
+    model.bc.prescribe_displacement(3, pyfem.DOFType.U_Z, 0.0)
+    model.bc.prescribe_displacement(1, pyfem.DOFType.U_X, 0.0)
+    model.bc.prescribe_displacement(2, pyfem.DOFType.U_X, 0.0)
+    model.bc.prescribe_displacement(5, pyfem.DOFType.U_X, 0.0)
+    model.bc.prescribe_displacement(6, pyfem.DOFType.U_X, 0.0)
+    model.bc.prescribe_displacement(2, pyfem.DOFType.U_Y, 0.0)
+    model.bc.prescribe_displacement(3, pyfem.DOFType.U_Y, 0.0)
+    model.bc.prescribe_displacement(6, pyfem.DOFType.U_Y, 0.0)
+    model.bc.prescribe_displacement(7, pyfem.DOFType.U_Y, 0.0)
 
     # Neumann boundary conditions (applied forces)
-    model.bc.apply_force(1, pyfem.DOFType.U_X, 5.0)
-    model.bc.apply_force(2, pyfem.DOFType.U_X, 5.0)
+    model.bc.apply_force(4, pyfem.DOFType.U_Z, -1e4)
+    model.bc.apply_force(5, pyfem.DOFType.U_Z, -5e3)
+    model.bc.apply_force(6, pyfem.DOFType.U_Z, -1e4)
+    model.bc.apply_force(7, pyfem.DOFType.U_Z, -5e3)
 
     # PROCESSING: Solve FEA problem
 

@@ -3,9 +3,11 @@
 Module defining the Model class for finite element analysis.
 
 Created: 2025/10/28 01:25:31
-Last modified: 2025/11/17 21:45:15
+Last modified: 2025/11/24 22:35:25
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
+
+import os
 
 from .boundary_conditions import BoundaryConditions
 from .element_compatibility import validate_element_problem_compatibility
@@ -15,6 +17,7 @@ from .materials import MaterialProperties
 from .mesh import Mesh
 from .problem import Problem
 from .setup_helpers import setup_dof_space_for_problem
+from .solution import Solution
 
 
 class ModelValidationError(Exception):
@@ -156,3 +159,60 @@ class Model:
             f"  Degrees of Freedom: {self.dof_space.total_dofs}\n"
             f"  Node Sets: {len(self.mesh.node_sets)}"
         )
+
+    def set_solution(self, solution: Solution) -> None:
+        """Store the solution (used later for export and post-processing)."""
+        self._solution = solution
+
+    @property
+    def solution(self) -> Solution:
+        """Access stored solution."""
+        return self._solution
+
+    # ----------------------------------------------------------------------
+    # VTK SAVE UTILITIES
+    # ----------------------------------------------------------------------
+    def _resolve_save_path(self, filename: str, save_to: str | None) -> str:
+        """
+        Resolve final export path:
+        - if filename is absolute -> return as is
+        - else -> save relative to the user script that executed pyFEM
+        - if save_to is provided, create and append folder automatically
+        """
+        # Case 1: absolute path -> use as given
+        if os.path.isabs(filename):
+            return filename
+
+        # Case 2: relative -> detect the script that imported pyFEM
+        import __main__
+
+        try:
+            base = os.path.dirname(os.path.abspath(__main__.__file__))
+        except AttributeError:
+            # interactive session (IPython/Jupyter) fallback
+            base = os.getcwd()
+
+        # Optionally create user-specified subfolder
+        if save_to is not None:
+            base = os.path.join(base, save_to)
+            os.makedirs(base, exist_ok=True)
+
+        return os.path.join(base, filename)
+
+    def save_vtk(
+        self,
+        filename: str,
+        *,
+        displacements: bool = False,
+        stresses: bool = False,
+        save_to: str | None = None,
+    ) -> None:
+        """Export VTK/VTU file to the correct location."""
+        if not hasattr(self, "_solution") or self._solution is None:
+            raise RuntimeError("No solution found. Run a Step before exporting.")
+
+        fullpath = self._resolve_save_path(filename, save_to)
+        from .vtk_export import VTKWriter  # lazy import
+
+        writer = VTKWriter(self, self._solution)
+        writer.write(fullpath, displacements=displacements, stresses=stresses)

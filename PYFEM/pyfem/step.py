@@ -3,7 +3,7 @@
 Module defining the Step class for analysis execution (similar to Abaqus step concept)
 
 Created: 2025/11/16 10:24:33
-Last modified: 2025/11/17 23:22:27
+Last modified: 2025/11/24 22:34:21
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -263,6 +263,9 @@ class Step:
 
         # Update model state with this step's solution
         model_state.update_solution(self.name, solution)
+
+        # Store solution also in the Model (used for export/postprocessing)
+        model.set_solution(solution)
 
         # Print completion if verbose
         if self.verbose:

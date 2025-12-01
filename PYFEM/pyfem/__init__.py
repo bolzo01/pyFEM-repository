@@ -3,7 +3,7 @@
 PyFEM package initialization.
 
 Created: 2025/10/25 19:28:51
-Last modified: 2025/11/22 23:52:52
+Last modified: 2025/11/23 22:27:15
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -22,6 +22,7 @@ from .problem import Dimension, Physics, Problem
 from .solution import Solution
 from .solvers import LinearStaticSolver
 from .step import ModelState, ProcedureType, Step
+from .vtk_export import VTKWriter
 
 __all__ = [
     "DOFType",
@@ -45,4 +46,5 @@ __all__ = [
     "ModelState",
     "ProcedureType",
     "Step",
+    "VTKWriter",
 ]

@@ -6,7 +6,7 @@ Problem 7.20 in "The Finite Element Method: Its Basis and Fundamentals", Seventh
 Zienkiewicz, Taylor, Zhu (2013).
 
 Created: 2025/11/21 18:04:29
-Last modified: 2025/11/21 23:43:27
+Last modified: 2025/11/24 01:39:51
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -128,6 +128,12 @@ def main() -> np.ndarray:
         model,
         model_state,
         operations=["element_stresses"],
+    )
+
+    pyfem.VTKWriter(model, model_state.current_solution).write(
+        "patch_test_triangle.vtu",
+        displacements=True,
+        stresses=True,
     )
 
     print(model_state.current_solution.element_stresses)

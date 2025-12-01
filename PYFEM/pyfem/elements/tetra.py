@@ -3,7 +3,7 @@
 Class for 4-node linear constant-strain tetrahedral element (CST).
 
 Created: 2025/11/23 00:15:34
-Last modified: 2025/11/29 12:28:29
+Last modified: 2025/11/23 18:44:40
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 

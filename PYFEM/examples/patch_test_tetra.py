@@ -15,7 +15,7 @@ Applied load:
 Units: mm, N, MPa = N/mm^2
 
 Created: 2025/11/22 23:16:15
-Last modified: 2025/11/23 19:23:41
+Last modified: 2025/11/24 01:28:10
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -147,6 +147,12 @@ def main() -> np.ndarray:
         model,
         model_state,
         operations=["element_stresses"],
+    )
+
+    pyfem.VTKWriter(model, model_state.current_solution).write(
+        "patch_test_tetra.vtu",
+        displacements=True,
+        stresses=True,
     )
 
     print(model_state.current_solution.element_stresses)

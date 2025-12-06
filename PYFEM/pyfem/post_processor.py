@@ -3,7 +3,7 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2025/11/01 15:55:12
+Last modified: 2025/12/06 18:30:41
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -30,12 +30,22 @@ class PostProcessor:
         element_properties: ElementProperties,
         original_global_stiffness_matrix: np.ndarray,
         nodal_displacements: np.ndarray,
+        number_elements: np.ndarray,
+        alpha: float,
+        E: float,
+        A: float,
+        P: float,
         magnification_factor: float = 0.0,
     ):
         self.mesh = mesh
         self.element_properties = element_properties
         self.original_global_stiffness_matrix = original_global_stiffness_matrix
         self.nodal_displacements = nodal_displacements
+        self.number_elements = number_elements
+        self.alpha = alpha
+        self.E = E
+        self.A = A
+        self.P = P
         self.magnification = magnification_factor
 
     def compute_strain_energy_local(self) -> None:
@@ -65,21 +75,103 @@ class PostProcessor:
             f"\n- Total strain energy in the system (from local computation): {total_strain_energy}"
         )
 
-    def compute_strain_energy_global(self) -> None:
+    def compute_strain_energy_global(
+        self,
+        i: int,
+    ) -> np.ndarray:
         """
         Computes the total strain energy using the global solution (U = 0.5 * u^T * K * u).
+
+        Returns:
+            epsilon_h.
+        """
+
+        number_elements = self.number_elements
+        K = self.original_global_stiffness_matrix
+        u = self.nodal_displacements
+
+        if i == 0:
+            epsilon_h = np.zeros((1, len(number_elements)))
+
+        epsilon_h[0, i] = 0.5 * (u.T @ (K @ u))
+
+        print(
+            f"\n- Total strain energy in the system (from FEM global computation): epsilon_h = {epsilon_h}"
+        )
+        return epsilon_h
+
+    def compute_strain_energy_analytical(self, i: int) -> np.ndarray:
+        """
+        Computes the analytical strain energy for the pull-out of a bar with E and A parameters in a medium with stiffness k.
+        Formula: epsilon = (P / (2.0 * alpha * E * A)) * (-np.exp(-20.0 * alpha) + 1.0).
+
+        Returns:
+            epsilon.
+        """
+
+        alpha = self.alpha
+        E = self.E
+        A = self.A
+        P = self.P
+        number_elements = self.number_elements
+
+        if i == 0:
+            epsilon = np.zeros((1, len(number_elements)))
+
+        epsilon[0, i] = (P / (2.0 * alpha * E * A)) * (-np.exp(-20.0 * alpha) + 1.0)
+
+        if i == number_elements.size:
+            print(
+                f"\n- Analytical solution of strain energy in the system: epsilon = {epsilon}"
+            )
+
+        return epsilon
+
+    def compute_relative_error_in_energy(
+        self, i: int, epsilon: np.ndarray, epsilon_h: np.ndarray
+    ) -> np.ndarray:
+        """
+        Computes the relative error in the energy norm using the formula: e = np.sqrt((epsilon - epsilon_h) / epsilon).
+        epsilon = analitical solution for strain energy
+        epsilon_h = strain energy from FEM global computation
+
+        Returns:
+            e.
+        """
+
+        number_elements = self.number_elements
+
+        if i == 0:
+            e = np.zeros((1, len(number_elements)))
+
+        e[0, i] = np.sqrt((epsilon[0, i] - epsilon_h[0, i]) / epsilon[0, i])
+
+        if i == number_elements.size:
+            print(f"\n- Relative error in the energy norm: e = {e}")
+
+        return e
+
+    def plot_e(
+        self,
+        i: int,
+        e: np.ndarray,
+    ) -> None:
+        """
+        Print of the relative error in energy norm for different number of elements.
 
         Returns:
             None.
         """
 
-        K = self.original_global_stiffness_matrix
-        u = self.nodal_displacements
-        total_strain_energy = 0.5 * (u.T @ (K @ u))
+        number_elements = self.number_elements
 
-        print(
-            f"\n- Total strain energy in the system (from global computation): {total_strain_energy}"
-        )
+        if i == number_elements.size:
+            plt.plot(number_elements, e)
+            plt.xlabel("number of elements")
+            plt.ylabel("Error in energy norm")
+            plt.title(
+                f"Error in energy norm in function of number of elements ({number_elements})"
+            )
 
     # -----------------------------------------------------------------------------
     # TrussPlotter

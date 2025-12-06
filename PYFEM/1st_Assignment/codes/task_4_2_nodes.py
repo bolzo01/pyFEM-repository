@@ -45,26 +45,30 @@ def main() -> np.ndarray:
     A = 1.0
     alpha = 1.0
 
+    epsilon = (P / (2.0 * alpha * E * A)) * (-np.exp(-20.0 * alpha) + 1.0)
+
     # 2. Element properties
 
     # Define element properties registry
     element_properties = pyfem.make_element_properties(
         [
-            ("bar", ("bar_1D", {"E": 1.0, "A": 1.0, "k": 1.0})),
+            ("bar", ("bar_1D", {"E": E, "A": A, "k": alpha**2 * E * A})),
         ]
     )
 
     for Ne in number_elements:
         num_elements = int(Ne)
+        # Found the position in number_elements of num_elements
+        i = np.where(number_elements == num_elements)
 
         # Assign properties to elements
         element_property_labels = ["bar"] * num_elements
 
-        # 1. Calcola Nodi e Punti
+        # Nodes and points calculation
         num_nodes = int(Ne + 1)
         points = np.linspace(0.0, 10.0, num_nodes)
 
-        # 2. Genera la Connettività
+        # Connectivity generation
         element_connectivity = genera_connettivita_uniforme(int(Ne))
 
         # 3. Mesh
@@ -134,10 +138,24 @@ def main() -> np.ndarray:
             model.element_properties,
             original_global_stiffness_matrix,
             nodal_displacements,
+            number_elements,
+            alpha,
+            E,
+            A,
+            P,
         )
 
-        # Compute strain energy
-        postprocessor.compute_strain_energy_global()
+        # Compute strain energy using the global solution (U = 0.5 * u^T * K * u)
+        epsilon_h = postprocessor.compute_strain_energy_global(i)
+
+        # Compute the analytical strain energy
+        epsilon = postprocessor.compute_strain_energy_analytical(i)
+
+        # Computes the relative error in the energy norm
+        e = postprocessor.compute_relative_error_in_energy(i, epsilon, epsilon_h)
+
+        # Computes the relative error in the energy norm
+        postprocessor.plot_e(i, e)
 
     return nodal_displacements
 

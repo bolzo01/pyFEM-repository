@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/11/09 13:29:29
+Last modified: 2025/12/01 22:13:22
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
@@ -172,8 +172,7 @@ class LinearStaticSolver:
         )
         print(f"{'=' * 70}")
 
-        # print("\n- Nodal displacements U:")
-        # print(self.nodal_displacements)
+        print(f"\n- Nodal displacements U: {self.nodal_displacements}")
 
         self.state = SolverState.SOLVED
 

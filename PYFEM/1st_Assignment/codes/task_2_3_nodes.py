@@ -14,7 +14,7 @@ def main() -> np.ndarray:
     bar_length = 10.0
     num_nodes = 3
     num_elements = 1
-    P = 1.0
+    P = -1.0
     E = 1.0
     A = 1.0
     alpha = 1.0

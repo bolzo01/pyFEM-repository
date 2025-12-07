@@ -3,7 +3,7 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2025/12/06 18:30:41
+Last modified: 2025/12/07 18:16:53
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -75,10 +75,7 @@ class PostProcessor:
             f"\n- Total strain energy in the system (from local computation): {total_strain_energy}"
         )
 
-    def compute_strain_energy_global(
-        self,
-        i: int,
-    ) -> np.ndarray:
+    def compute_strain_energy_global(self, i: int, epsilon_h: np.ndarray) -> np.ndarray:
         """
         Computes the total strain energy using the global solution (U = 0.5 * u^T * K * u).
 
@@ -90,17 +87,18 @@ class PostProcessor:
         K = self.original_global_stiffness_matrix
         u = self.nodal_displacements
 
-        if i == 0:
-            epsilon_h = np.zeros((1, len(number_elements)))
-
         epsilon_h[0, i] = 0.5 * (u.T @ (K @ u))
 
-        print(
-            f"\n- Total strain energy in the system (from FEM global computation): epsilon_h = {epsilon_h}"
-        )
+        if i == (number_elements.size - 1):
+            print(
+                f"\n- Total strain energy in the system (from FEM global computation): epsilon_h = {epsilon_h}"
+            )
+
         return epsilon_h
 
-    def compute_strain_energy_analytical(self, i: int) -> np.ndarray:
+    def compute_strain_energy_analytical(
+        self, i: int, epsilon: np.ndarray
+    ) -> np.ndarray:
         """
         Computes the analytical strain energy for the pull-out of a bar with E and A parameters in a medium with stiffness k.
         Formula: epsilon = (P / (2.0 * alpha * E * A)) * (-np.exp(-20.0 * alpha) + 1.0).
@@ -115,12 +113,9 @@ class PostProcessor:
         P = self.P
         number_elements = self.number_elements
 
-        if i == 0:
-            epsilon = np.zeros((1, len(number_elements)))
-
         epsilon[0, i] = (P / (2.0 * alpha * E * A)) * (-np.exp(-20.0 * alpha) + 1.0)
 
-        if i == number_elements.size:
+        if i == (number_elements.size - 1):
             print(
                 f"\n- Analytical solution of strain energy in the system: epsilon = {epsilon}"
             )
@@ -128,7 +123,7 @@ class PostProcessor:
         return epsilon
 
     def compute_relative_error_in_energy(
-        self, i: int, epsilon: np.ndarray, epsilon_h: np.ndarray
+        self, i: int, epsilon: np.ndarray, epsilon_h: np.ndarray, e: np.ndarray
     ) -> np.ndarray:
         """
         Computes the relative error in the energy norm using the formula: e = np.sqrt((epsilon - epsilon_h) / epsilon).
@@ -141,37 +136,81 @@ class PostProcessor:
 
         number_elements = self.number_elements
 
-        if i == 0:
-            e = np.zeros((1, len(number_elements)))
-
         e[0, i] = np.sqrt((epsilon[0, i] - epsilon_h[0, i]) / epsilon[0, i])
 
-        if i == number_elements.size:
+        if i == (number_elements.size - 1):
             print(f"\n- Relative error in the energy norm: e = {e}")
 
         return e
 
-    def plot_e(
+    def plot_solution(
         self,
-        i: int,
-        e: np.ndarray,
+        epsilon: np.ndarray,
+        epsilon_h: np.ndarray,
     ) -> None:
         """
-        Print of the relative error in energy norm for different number of elements.
+        Print of the analitical solution and numerical one vs number of elements,
+        related to energy.
 
         Returns:
             None.
         """
 
         number_elements = self.number_elements
+        epsilon = epsilon.flatten()
+        epsilon_h = epsilon_h.flatten()
 
-        if i == number_elements.size:
-            plt.plot(number_elements, e)
-            plt.xlabel("number of elements")
-            plt.ylabel("Error in energy norm")
-            plt.title(
-                f"Error in energy norm in function of number of elements ({number_elements})"
-            )
+        plt.plot(number_elements, epsilon, marker="o", linestyle="-", color="r")
+        plt.plot(number_elements, epsilon_h, marker="o", linestyle="-", color="b")
+
+        plt.xlabel("Number of elements")
+        plt.ylabel("Energy")
+        plt.title("Solution of strain energy vs number of elements")
+        plt.grid(True)
+        plt.show()
+
+    def plot_e(
+        self,
+        e: np.ndarray,
+    ) -> None:
+        """
+        Print of the relative error in energy for different number of elements.
+
+        Returns:
+            None.
+        """
+
+        number_elements = self.number_elements
+        e = e.flatten()
+
+        plt.plot(number_elements, e, marker="o", linestyle="-")
+        plt.xlabel("Number of elements")
+        plt.ylabel("Error in energy norm")
+        plt.title("Error in energy norm in function of number of elements")
+        plt.grid(True)  # Fondamentale per leggere i grafici di convergenza
+        plt.show()
+
+    def plot_convergence_rate(
+        self,
+        e: np.ndarray,
+    ) -> None:
+        """
+        Print of the covergence rate in energy.
+
+        Returns:
+            None.
+        """
+
+        number_elements = self.number_elements
+        e = e.flatten()
+
+        plt.loglog(number_elements, e, marker="o", linestyle="-", color="b")
+
+        plt.xlabel("Number of elements (Log scale)")
+        plt.ylabel("Error in energy norm (Log scale)")
+        plt.title("Convergence Rate")
+        plt.grid(True)
+        plt.show()
 
     # -----------------------------------------------------------------------------
     # TrussPlotter

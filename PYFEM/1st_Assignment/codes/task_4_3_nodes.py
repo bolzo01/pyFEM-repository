@@ -160,12 +160,8 @@ def main() -> None:
         # Computes the relative error in the energy norm
         e = postprocessor.compute_relative_error_in_energy(i, epsilon, epsilon_h, e)
 
-    # Plots the solution of the energy
-    postprocessor.plot_solution(epsilon, epsilon_h)
-    # Plots the relative error in the energy
+    # Computes the relative error in the energy norm
     postprocessor.plot_e(e)
-    # Plots the relative error in the energy
-    postprocessor.plot_convergence_rate(e)
 
 
 if __name__ == "__main__":

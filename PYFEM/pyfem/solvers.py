@@ -3,19 +3,17 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/12/01 22:13:22
-Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
+Last modified: 2025/12/10 15:44:37
+Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
+import time
 from enum import Enum, auto
 
 import numpy as np
+from scipy import sparse
 
-from .fem import (
-    apply_nodal_forces,
-    apply_prescribed_displacements,
-    assemble_global_stiffness_matrix,
-)
+from .fem import assemble_global_stiffness_matrix
 from .model import Model
 
 
@@ -32,11 +30,12 @@ class LinearStaticSolver:
     Assembles and solves the system of equations KU=F.
     """
 
-    def __init__(self, model: Model):
+    def __init__(self, model: Model, use_sparse: bool = True):
         """Initialize solver from a Model.
 
         Args:
             model: Model object containing mesh, element properties, BCs, and DOF space
+            use_sparse: Use sparse matrix storage (default: True)
 
         Example:
             problem = Problem(Physics.MECHANICS, Dimension.D1)
@@ -51,12 +50,18 @@ class LinearStaticSolver:
         self.applied_forces = model.bc.applied_forces
         self.prescribed_displacements = model.bc.prescribed_displacements
         self.dof_space = model.dof_space
+        self.use_sparse = use_sparse
         self.state = SolverState.INITIALIZED
 
         # Initialize global matrices and vectors as instance attributes
         total_dofs = self.dof_space.total_dofs
-        self.global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
-        self.original_global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
+
+        # Initialize empty structures
+        if use_sparse:
+            self.global_stiffness_matrix = sparse.csc_matrix((total_dofs, total_dofs))
+        else:
+            self.global_stiffness_matrix = np.zeros((total_dofs, total_dofs))
+
         self.global_force_vector = np.zeros(total_dofs)
 
         # Will be computed by solve()
@@ -69,6 +74,7 @@ class LinearStaticSolver:
         self.matrix_size_bytes: int = 0
         self.num_nonzero_entries: int = 0
         self.sparsity_percentage: float = 0.0
+        self.solve_time: float = 0.0
 
     def _ensure_state(self, expected: SolverState) -> None:
         if self.state != expected:
@@ -82,87 +88,142 @@ class LinearStaticSolver:
         self._ensure_state(SolverState.INITIALIZED)
 
         # Assemble the global stiffness matrix
-        assemble_global_stiffness_matrix(
+        self.global_stiffness_matrix = assemble_global_stiffness_matrix(
             self.mesh,
             self.element_properties,
             self.global_stiffness_matrix,
             self.dof_space,
+            use_sparse=self.use_sparse,
         )
         # print("\n- Global stiffness matrix K:")
         # for row in self.global_stiffness_matrix:
-        # print(row)
-
-        # Save a copy of the original global stiffness matrix before applying boundary conditions
-        self.original_global_stiffness_matrix = self.global_stiffness_matrix.copy()
+        #     print(row)
 
         self.state = SolverState.ASSEMBLED
         return None
 
     def apply_boundary_conditions(self) -> None:
-        """Applies Neumann and Dirichlet boundary conditions."""
+        """Applies Neumann boundary conditions (forces only).
+
+        Dirichlet BCs are handled via static condensation during solve.
+        """
 
         self._ensure_state(SolverState.ASSEMBLED)
 
-        # Boundary conditions: Apply forces
-        apply_nodal_forces(self.applied_forces, self.global_force_vector)
-
-        # Boundary conditions: Constrain displacements
-        apply_prescribed_displacements(
-            self.prescribed_displacements,
-            self.global_stiffness_matrix,
-            self.global_force_vector,
-        )
-
-        # print(
-        #     "\n- Modified global stiffness matrix K after applying boundary conditions:"
-        # )
-        # for row in self.global_stiffness_matrix:
-        #     print(row)
-
-        # print("\n- Global force vector F after applying boundary conditions:")
-        # print(self.global_force_vector)
+        if self.applied_forces:
+            for dof, value in self.applied_forces:
+                self.global_force_vector[int(dof)] = value
 
         self.state = SolverState.BOUNDARY_APPLIED
+        return None
+
+    def solve(self) -> None:
+        """Solves the linear system KU=F using static condensation."""
+
+        self._ensure_state(SolverState.BOUNDARY_APPLIED)
+
+        K = self.global_stiffness_matrix
+        F = self.global_force_vector
+
+        # Extract prescribed DOF information
+        if self.prescribed_displacements:
+            prescribed_dofs = np.array(
+                [int(dof) for dof, _ in self.prescribed_displacements], dtype=int
+            )
+            prescribed_vals = np.array(
+                [float(val) for _, val in self.prescribed_displacements], dtype=float
+            )
+        else:
+            prescribed_dofs = np.array([], dtype=int)
+            prescribed_vals = np.array([], dtype=float)
+
+        # Identify free DOFs
+        all_dofs = np.arange(K.shape[0])
+        free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
+
+        # Partition the system
+        if len(prescribed_dofs) > 0:
+            K_ff = K[np.ix_(free_dofs, free_dofs)]
+            K_fp = K[np.ix_(free_dofs, prescribed_dofs)]
+            F_f = F[free_dofs] - K_fp @ prescribed_vals
+        else:
+            K_ff = K
+            F_f = F[free_dofs]
+
+        start_time = time.time()
+
+        if self.use_sparse and sparse.isspmatrix(K):
+            # Sparse solver with static condensation
+            U_free = sparse.linalg.spsolve(K_ff, F_f)
+        else:
+            # Dense solver with static condensation
+            U_free = np.linalg.solve(K_ff, F_f)
+
+        self.solve_time = time.time() - start_time
+
+        # Reconstruct full displacement vector
+        self.nodal_displacements = np.zeros(K.shape[0])
+        self.nodal_displacements[free_dofs] = U_free
+        if len(prescribed_dofs) > 0:
+            self.nodal_displacements[prescribed_dofs] = prescribed_vals
+
+        print("\n- Nodal displacements U:")
+        print(self.nodal_displacements)
+
+        self._compute_statistics(K, free_dofs, prescribed_dofs)
+
+        self.state = SolverState.SOLVED
 
         return None
 
-    def solve(self) -> tuple[np.ndarray, np.ndarray]:
-        """Solves the linear system of equations KU=F.
+    def _compute_statistics(self, K, free_dofs, prescribed_dofs) -> None:
+        """Computes solver statistics."""
 
-        Returns:
-            Solution array and global stiffness matrix before applying boundary conditions.
-        """
-        self._ensure_state(SolverState.BOUNDARY_APPLIED)
+        if self.use_sparse and sparse.isspmatrix(K):
+            # Total number of matrix entries
+            self.num_matrix_entries = K.shape[0] * K.shape[1]
 
-        self.nodal_displacements = np.linalg.solve(
-            self.global_stiffness_matrix,
-            self.global_force_vector,
-        )
+            # Matrix size in memory (bytes)
+            self.matrix_size_bytes = K.data.nbytes + K.indices.nbytes + K.indptr.nbytes
+
+            # Sparsity statistics
+            self.num_nonzero_entries = K.nnz  # Number of stored values, includes zeros
+            self.sparsity_percentage = (
+                1.0 - self.num_nonzero_entries / self.num_matrix_entries
+            ) * 100.0
+        else:
+            # Total number of matrix entries
+            self.num_matrix_entries = self.global_stiffness_matrix.size
+
+            # Matrix size in memory (bytes)
+            self.matrix_size_bytes = self.global_stiffness_matrix.nbytes
+
+            # Sparsity statistics
+            self.num_nonzero_entries = int(
+                np.count_nonzero(self.global_stiffness_matrix)
+            )
+            self.sparsity_percentage = (
+                1.0 - self.num_nonzero_entries / self.num_matrix_entries
+            ) * 100.0
+
+        # Common statistics
 
         # System size (number of equations/unknowns)
         self.system_size = self.dof_space.total_dofs
-
-        # Matrix dimensions (system_size × system_size)
+        # Matrix dimensions (system_size x system_size)
         self.matrix_shape = self.global_stiffness_matrix.shape
-
-        # Total number of matrix entries
-        self.num_matrix_entries = self.global_stiffness_matrix.size
-
-        # Matrix size in memory (bytes)
-        self.matrix_size_bytes = self.global_stiffness_matrix.nbytes
-
-        # Sparsity statistics
-        self.num_nonzero_entries = int(np.count_nonzero(self.global_stiffness_matrix))
-        self.sparsity_percentage = (
-            1.0 - self.num_nonzero_entries / self.num_matrix_entries
-        ) * 100.0
 
         print(f"\n{'=' * 70}")
         print("Solver Statistics")
         print(f"{'=' * 70}")
-        print(f"  System size (DOFs):           {self.system_size}")
         print(
-            f"  Matrix shape:                 {self.matrix_shape[0]} × {self.matrix_shape[1]}"
+            f"  Solver type:                  {'SPARSE' if self.use_sparse else 'DENSE'}"
+        )
+        print(f"  System size (DOFs):           {self.system_size}")
+        print(f"  Free DOFs:                    {len(free_dofs):,}")
+        print(f"  Prescribed DOFs:              {len(prescribed_dofs):,}")
+        print(
+            f"  Matrix shape:                 {self.matrix_shape[0]} x {self.matrix_shape[1]}"
         )
         print(f"  Total matrix entries:         {self.num_matrix_entries:,}")
         print(f"  Non-zero entries:             {self.num_nonzero_entries:,}")
@@ -170,10 +231,10 @@ class LinearStaticSolver:
         print(
             f"  Matrix memory usage:          {self.matrix_size_bytes:,} bytes ({self.matrix_size_bytes / 1024 / 1024:.2f} MiB)"
         )
+        print(f"  Solution time:                {self.solve_time:.4f} seconds")
+        print(
+            "  Note:                         Statistics for ORIGINAL matrix (before BCs)"
+        )
         print(f"{'=' * 70}")
 
-        print(f"\n- Nodal displacements U: {self.nodal_displacements}")
-
-        self.state = SolverState.SOLVED
-
-        return self.nodal_displacements, self.original_global_stiffness_matrix
+        return None

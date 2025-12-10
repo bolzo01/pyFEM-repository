@@ -3,7 +3,7 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2025/12/07 18:16:53
+Last modified: 2025/12/10 15:46:10
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -28,7 +28,7 @@ class PostProcessor:
         self,
         mesh: Mesh,
         element_properties: ElementProperties,
-        original_global_stiffness_matrix: np.ndarray,
+        global_stiffness_matrix: np.ndarray,
         nodal_displacements: np.ndarray,
         number_elements: np.ndarray,
         alpha: float,
@@ -39,7 +39,7 @@ class PostProcessor:
     ):
         self.mesh = mesh
         self.element_properties = element_properties
-        self.original_global_stiffness_matrix = original_global_stiffness_matrix
+        self.global_stiffness_matrix = global_stiffness_matrix
         self.nodal_displacements = nodal_displacements
         self.number_elements = number_elements
         self.alpha = alpha
@@ -84,7 +84,7 @@ class PostProcessor:
         """
 
         number_elements = self.number_elements
-        K = self.original_global_stiffness_matrix
+        K = self.global_stiffness_matrix
         u = self.nodal_displacements
 
         epsilon_h[0, i] = 0.5 * (u.T @ (K @ u))
@@ -172,6 +172,7 @@ class PostProcessor:
     def plot_e(
         self,
         e: np.ndarray,
+        h: np.ndarray,
     ) -> None:
         """
         Print of the relative error in energy for different number of elements.
@@ -190,9 +191,17 @@ class PostProcessor:
         plt.grid(True)  # Fondamentale per leggere i grafici di convergenza
         plt.show()
 
+        plt.plot(h, e, marker="x", linestyle="-")
+        plt.xlabel("Element size h")
+        plt.ylabel("Error in energy")
+        plt.title("Error in energy norm in function of element size h")
+        plt.grid(True)  # Fondamentale per leggere i grafici di convergenza
+        plt.show()
+
     def plot_convergence_rate(
         self,
         e: np.ndarray,
+        h: np.ndarray,
     ) -> None:
         """
         Print of the covergence rate in energy.
@@ -205,8 +214,14 @@ class PostProcessor:
         e = e.flatten()
 
         plt.loglog(number_elements, e, marker="o", linestyle="-", color="b")
-
         plt.xlabel("Number of elements (Log scale)")
+        plt.ylabel("Error in energy norm (Log scale)")
+        plt.title("Convergence Rate")
+        plt.grid(True)
+        plt.show()
+
+        plt.loglog(h, e, marker="x", linestyle="-", color="b")
+        plt.xlabel("Element size h (Log scale)")
         plt.ylabel("Error in energy norm (Log scale)")
         plt.title("Convergence Rate")
         plt.grid(True)

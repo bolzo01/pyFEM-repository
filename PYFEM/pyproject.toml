@@ -5,3 +5,11 @@ description = "pyFEM: A Python FEM solver"
 authors = [
     { name = "Francesco Bolzonella", email = "francesco.bolzonella.1@studenti.unipd.it" }
 ]
+
+
+[tool.mypy]
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = "scipy.*"
+ignore_missing_imports = true

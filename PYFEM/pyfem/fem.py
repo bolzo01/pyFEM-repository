@@ -3,14 +3,15 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/26 15:28:04
+Last modified: 2025/12/08 11:24:40
 Author: Francesco Bolzonella (francesco.bolzonella.1@studenti.unipd.it)
 """
 
 import numpy as np
+from scipy import sparse
 
 from .dof_types import DOFSpace
-from .element_properties import ElementProperties, param
+from .element_properties import ElementProperties, ElementProperty, param
 from .mesh import Mesh
 
 
@@ -19,187 +20,206 @@ def assemble_global_stiffness_matrix(
     element_properties: ElementProperties,
     global_stiffness_matrix: np.ndarray,
     dof_space: DOFSpace,
-) -> None:
+    use_sparse: bool = True,
+) -> np.ndarray | sparse.spmatrix:
     """
     Assembles the global stiffness matrix by integrating element stiffness matrices.
 
-    This function modifies the global stiffness matrix in place.
-
     Returns:
-        None.
+        The assembled global stiffness matrix (dense or sparse).
     """
 
     num_elements = mesh.num_elements
     element_connectivity = mesh.element_connectivity
 
-    # Assemble the global stiffness matrix
-    # print("\n- Assembling local stiffness matrix into global stiffness matrix")
-    for element_index in range(num_elements):
-        # Generate the local stiffness matrix for a one-dimensional spring element
-        label = mesh.element_property_labels[element_index]
-        elem_prop = element_properties[label]
+    # ============================================================
+    # SPARSE ASSEMBLY (with duplicate elimination)
+    # ============================================================
+    if use_sparse:
+        # Use dictionary to accumulate values and eliminate duplicates
+        triplet_dict: dict[tuple[int, int], float] = {}
 
-        # Generate local stiffness matrix based on element type
-        if elem_prop.kind == "spring_1D":
-            k_e = param(elem_prop, "k", float)
+        for element_index in range(num_elements):
+            # Get element properties
+            label = mesh.element_property_labels[element_index]
+            elem_prop = element_properties[label]
 
-            # print(f"\n-- Element {element_index}, k = {k_e}")
-            local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
-
-        elif elem_prop.kind == "bar_1D":
-            E = param(elem_prop, "E", float)
-            A = param(elem_prop, "A", float)
-            k_param = param(elem_prop, "k", float)
-
-            # Get element nodes and compute length
-            element_nodes = element_connectivity[element_index]
-            node1, node2 = element_nodes
-            x1 = mesh.points[node1]
-            x2 = mesh.points[node2]
-            L = x2 - x1
-
-            # Bar stiffness matrix
-            k_e = (E * A) / L
-            # Spring stiffness matrix
-            k_s = k_param * L
-
-            # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
-            local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]]) + np.array(
-                [[(1 / 3) * k_s, (1 / 6) * k_s], [(1 / 6) * k_s, (1 / 3) * k_s]]
+            # Compute local stiffness matrix
+            local_K = _compute_local_stiffness(
+                elem_prop, element_index, element_connectivity, mesh
             )
 
-        elif elem_prop.kind == "bar3_1D":
-            E = param(elem_prop, "E", float)
-            A = param(elem_prop, "A", float)
-            k_param = param(elem_prop, "k", float)
+            # Get DOF mapping
+            dof_map = dof_space.get_dof_mapping(element_connectivity[element_index])
 
-            # Get element nodes and compute length
-            element_nodes = element_connectivity[element_index]
-            node1, node2, node3 = element_nodes
-            x1 = mesh.points[node1]
-            x2 = mesh.points[node2]
-            x3 = mesh.points[node3]
-            L = x3 - x1
+            # Accumulate into dictionary (sums duplicates manually)
+            for i, i_global in enumerate(dof_map):
+                for j, j_global in enumerate(dof_map):
+                    key = (i_global, j_global)
+                    triplet_dict[key] = triplet_dict.get(key, 0.0) + local_K[i, j]
 
-            # Bar stiffness matrix
-            k_e = (E * A) / (3.0 * L)
-            # Spring stiffness matrix
-            k_s = (k_param * L) / 30.0
+        # Remove entries that cancel to ~0 due to numerical roundoff
+        tolerance = 1e-13
+        filtered_triplets = [
+            (i, j, v) for (i, j), v in triplet_dict.items() if abs(v) > tolerance
+        ]
 
-            # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
-            local_stiffness_matrix = np.array(
-                [
-                    [7.0 * k_e, -8.0 * k_e, 1.0 * k_e],
-                    [-8.0 * k_e, 16.0 * k_e, -8.0 * k_e],
-                    [1.0 * k_e, -8.0 * k_e, 7.0 * k_e],
-                ]
-            ) + np.array(
-                [
-                    [4.0 * k_s, 2.0 * k_s, -1.0 * k_s],
-                    [2.0 * k_s, 16.0 * k_s, 2.0 * k_s],
-                    [-1.0 * k_s, 2.0 * k_s, 4.0 * k_s],
-                ]
+        n_entries = len(filtered_triplets)
+        data = np.empty(n_entries, dtype=float)
+        row = np.empty(n_entries, dtype=int)
+        col = np.empty(n_entries, dtype=int)
+
+        for idx, (i, j, value) in enumerate(filtered_triplets):
+            row[idx] = i
+            col[idx] = j
+            data[idx] = value
+
+        # Single conversion: COO -> CSC
+        n_dof = dof_space.total_dofs
+        K_csc = sparse.csc_matrix((data, (row, col)), shape=(n_dof, n_dof))
+
+        return K_csc
+
+    # ============================================================
+    # DENSE ASSEMBLY
+    # ============================================================
+    else:
+        # Assemble the global stiffness matrix
+        # print("\n- Assembling local stiffness matrix into global stiffness matrix")
+        for element_index in range(num_elements):
+            # Generate the local stiffness matrix for a one-dimensional spring element
+            label = mesh.element_property_labels[element_index]
+            elem_prop = element_properties[label]
+
+            # Compute local stiffness matrix
+            local_K = _compute_local_stiffness(
+                elem_prop, element_index, element_connectivity, mesh
             )
 
-        elif elem_prop.kind == "bar_2D":
-            E = param(elem_prop, "E", float)
-            A = param(elem_prop, "A", float)
-
-            # Get element nodes and compute length
+            # Get local to global DOF mapping using DOFSpace
             element_nodes = element_connectivity[element_index]
-            node1, node2 = element_nodes
-            P1 = mesh.points[node1]
-            P2 = mesh.points[node2]
+            dof_mapping = dof_space.get_dof_mapping(element_nodes)
 
-            L = np.sqrt((P2[0] - P1[0]) ** 2 + (P2[1] - P2[1]) ** 2)
+            # Assemble the local stiffness matrix into the global stiffness matrix
+            for i, global_i in enumerate(dof_mapping):
+                for j, global_j in enumerate(dof_mapping):
+                    global_stiffness_matrix[global_i, global_j] += local_K[i, j]
 
-            # Calculate the directional cosines of the bar_2D element
-            # (cosine and sine of angle between local and global axes)
-            directional_cosines = (P2 - P1) / L
-            c, s = directional_cosines
+        return global_stiffness_matrix
 
-            # Bar stiffness matrix
-            k_e = (E * A) / L
-            # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
-            local_stiffness_matrix = k_e * np.array(
-                [
-                    [c * c, c * s, -c * c, -c * s],
-                    [c * s, s * s, -c * s, -s * s],
-                    [-c * c, -c * s, c * c, c * s],
-                    [-c * s, -s * s, c * s, s * s],
-                ]
-            )
 
-        else:
-            raise ValueError(f"Unknown element kind: {elem_prop.kind}")
+def _compute_local_stiffness(
+    elem_prop: ElementProperty,
+    element_index: int,
+    element_connectivity: list,
+    mesh: Mesh,
+) -> np.ndarray:
+    """
+    Compute local stiffness matrix for a given element type.
 
-        # print("   Local K:\n  ", local_stiffness_matrix)
+    Args:
+        elem_prop: Element properties
+        element_index: Index of current element
+        element_connectivity: Element connectivity array
+        points: Nodal coordinates
 
-        # Map local degrees of freedom to global degrees of freedom for an element
-        # first determine the element nodes through the element connectivity matrix
+    Returns:
+        Local stiffness matrix
+    """
+
+    # Generate local stiffness matrix based on element type
+    if elem_prop.kind == "spring_1D":
+        k_e = param(elem_prop, "k", float)
+
+        # print(f"\n-- Element {element_index}, k = {k_e}")
+        local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]])
+        return local_stiffness_matrix
+
+    elif elem_prop.kind == "bar_1D":
+        E = param(elem_prop, "E", float)
+        A = param(elem_prop, "A", float)
+        k_param = param(elem_prop, "k", float)
+
+        # Get element nodes and compute length
         element_nodes = element_connectivity[element_index]
-        dof_mapping = dof_space.get_dof_mapping(element_nodes)
+        node1, node2 = element_nodes
+        x1 = mesh.points[node1]
+        x2 = mesh.points[node2]
+        L = x2 - x1
 
-        # Assemble the local stiffness matrix into the global stiffness matrix
-        for i, global_i in enumerate(dof_mapping):
-            for j, global_j in enumerate(dof_mapping):
-                global_stiffness_matrix[global_i, global_j] += local_stiffness_matrix[
-                    i, j
-                ]
+        # Bar stiffness matrix
+        k_e = (E * A) / L
+        # Spring stiffness matrix
+        k_s = k_param * L
 
-    return None
+        # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
+        local_stiffness_matrix = np.array([[k_e, -k_e], [-k_e, k_e]]) + np.array(
+            [[(1 / 3) * k_s, (1 / 6) * k_s], [(1 / 6) * k_s, (1 / 3) * k_s]]
+        )
 
+    elif elem_prop.kind == "bar3_1D":
+        E = param(elem_prop, "E", float)
+        A = param(elem_prop, "A", float)
+        k_param = param(elem_prop, "k", float)
 
-def apply_nodal_forces(
-    applied_forces: list[tuple[int, float]] | None,
-    global_force_vector: np.ndarray,
-) -> None:
-    """
-    Applies nodal forces to the global force vector (Neumann boundary conditions).
+        # Get element nodes and compute length
+        element_nodes = element_connectivity[element_index]
+        node1, node2, node3 = element_nodes
+        x1 = mesh.points[node1]
+        x2 = mesh.points[node2]
+        x3 = mesh.points[node3]
+        L = x3 - x1
 
-    This function modifies the global force vector in place.
+        # Bar stiffness matrix
+        k_e = (E * A) / (3.0 * L)
+        # Spring stiffness matrix
+        k_s = (k_param * L) / 30.0
 
-    Args:
-        applied_forces: List of (dof_index, force_value) pairs.
-        global_force_vector: The global force vector to modify.
-    """
-    if not applied_forces:
-        # Nothing to apply (handles None or empty list)
-        return
+        # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
+        local_stiffness_matrix = np.array(
+            [
+                [7.0 * k_e, -8.0 * k_e, 1.0 * k_e],
+                [-8.0 * k_e, 16.0 * k_e, -8.0 * k_e],
+                [1.0 * k_e, -8.0 * k_e, 7.0 * k_e],
+            ]
+        ) + np.array(
+            [
+                [4.0 * k_s, 2.0 * k_s, -1.0 * k_s],
+                [2.0 * k_s, 16.0 * k_s, 2.0 * k_s],
+                [-1.0 * k_s, 2.0 * k_s, 4.0 * k_s],
+            ]
+        )
 
-    for dof, value in applied_forces:
-        global_force_vector[int(dof)] = value
+    elif elem_prop.kind == "bar_2D":
+        E = param(elem_prop, "E", float)
+        A = param(elem_prop, "A", float)
 
-    return None
+        # Get element nodes and compute length
+        element_nodes = element_connectivity[element_index]
+        node1, node2 = element_nodes
+        P1 = mesh.points[node1]
+        P2 = mesh.points[node2]
 
+        L = np.sqrt((P2[0] - P1[0]) ** 2 + (P2[1] - P2[1]) ** 2)
 
-def apply_prescribed_displacements(
-    prescribed_displacements: list[tuple[int, float]],
-    global_stiffness_matrix: np.ndarray,
-    global_force_vector: np.ndarray,
-) -> None:
-    """
-    Applies prescribed displacements (Dirichlet BCs) by modifying
-    the global stiffness matrix and force vector in place.
+        # Calculate the directional cosines of the bar_2D element
+        # (cosine and sine of angle between local and global axes)
+        directional_cosines = (P2 - P1) / L
+        c, s = directional_cosines
 
-    Args:
-        prescribed_displacements: List of (global_dof, value) pairs.
-        global_stiffness_matrix: Global stiffness matrix (modified in place).
-        global_force_vector: Global force vector (modified in place).
-    """
+        # Bar stiffness matrix
+        k_e = (E * A) / L
+        # print(f"\n-- Element {element_index}, E = {E}, A = {A}, L = {L}")
+        local_stiffness_matrix = k_e * np.array(
+            [
+                [c * c, c * s, -c * c, -c * s],
+                [c * s, s * s, -c * s, -s * s],
+                [-c * c, -c * s, c * c, c * s],
+                [-c * s, -s * s, c * s, s * s],
+            ]
+        )
 
-    # Step 1: Extract DOF indices and values
-    dof_indices = [int(dof) for dof, _ in prescribed_displacements]
-    values = np.array([value for _, value in prescribed_displacements], dtype=float)
+    else:
+        raise ValueError(f"Unknown element kind: {elem_prop.kind}")
 
-    # Step 2: Modify RHS -> equivalent force adjustment
-    global_force_vector[:] -= global_stiffness_matrix[:, dof_indices] @ values
-
-    # Step 3: Zero out corresponding rows and columns
-    for dof, value in prescribed_displacements:
-        global_stiffness_matrix[:, dof] = 0.0
-        global_stiffness_matrix[dof, :] = 0.0
-        global_stiffness_matrix[dof, dof] = 1.0
-        global_force_vector[dof] = value  # Enforce displacement value
-
-    return None
+    return local_stiffness_matrix

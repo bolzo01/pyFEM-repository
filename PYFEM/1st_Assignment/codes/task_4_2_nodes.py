@@ -5,7 +5,7 @@ import numpy as np
 import pyfem
 
 
-def genera_connettivita_uniforme(Ne: int) -> list:
+def connectivity_2nodes_per_element(Ne: int) -> list:
     """
     Genera la connettività per una mesh 1D uniforme con Ne elementi a due nodi.
 
@@ -30,7 +30,7 @@ def genera_connettivita_uniforme(Ne: int) -> list:
     return element_connectivity
 
 
-def main() -> None:
+def main(use_sparse: bool = False) -> None:
     # PREPROCESSING
 
     # 1. Geometry and discretization
@@ -40,6 +40,7 @@ def main() -> None:
     number_elements = np.zeros(13)
     for n in range(0, 13):
         number_elements[n] = 2**n
+    h = L / number_elements
     P = 1.0
     E = 1.0
     A = 1.0
@@ -63,6 +64,7 @@ def main() -> None:
 
     for Ne in number_elements:
         num_elements = int(Ne)
+
         # Found the position in number_elements of num_elements
         i = np.where(number_elements == num_elements)[0][0]
 
@@ -74,7 +76,7 @@ def main() -> None:
         points = np.linspace(0.0, 10.0, num_nodes)
 
         # Connectivity generation
-        element_connectivity = genera_connettivita_uniforme(int(Ne))
+        element_connectivity = connectivity_2nodes_per_element(int(Ne))
 
         # 3. Mesh
 
@@ -134,7 +136,7 @@ def main() -> None:
         solver.apply_boundary_conditions()
 
         # Solve for nodal displacements
-        nodal_displacements, original_global_stiffness_matrix = solver.solve()
+        solver.solve()
 
         # POSTPROCESSING: Compute derived quantities
 
@@ -142,8 +144,8 @@ def main() -> None:
         postprocessor = pyfem.PostProcessor(
             model.mesh,
             model.element_properties,
-            original_global_stiffness_matrix,
-            nodal_displacements,
+            solver.global_stiffness_matrix,
+            solver.nodal_displacements,
             number_elements,
             alpha,
             E,
@@ -163,10 +165,10 @@ def main() -> None:
     # Plots the solution of the energy
     postprocessor.plot_solution(epsilon, epsilon_h)
     # Plots the relative error in the energy
-    postprocessor.plot_e(e)
+    postprocessor.plot_e(e, h)
     # Plots the relative error in the energy
-    postprocessor.plot_convergence_rate(e)
+    postprocessor.plot_convergence_rate(e, h)
 
 
 if __name__ == "__main__":
-    main()
+    main(use_sparse=False)

@@ -44,7 +44,9 @@ def main(use_sparse: bool = False) -> None:
     P = 1.0
     E = 1.0
     A = 1.0
-    alpha = 1.0
+    alpha_values = np.array([1.0])
+    alpha = float(alpha_values)
+    alpha_counter = np.where(alpha_values == alpha)[0][0]
 
     epsilon = (P / (2.0 * alpha * E * A)) * (-np.exp(-20.0 * alpha) + 1.0)
 
@@ -148,6 +150,8 @@ def main(use_sparse: bool = False) -> None:
             solver.nodal_displacements,
             number_elements,
             alpha,
+            alpha_counter,
+            alpha_values,
             E,
             A,
             P,

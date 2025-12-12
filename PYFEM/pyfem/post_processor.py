@@ -3,7 +3,7 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2025/12/10 15:46:10
+Last modified: 2025/12/12 21:25:13
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -12,6 +12,7 @@ import os
 import matplotlib.axes
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.sparse.linalg as spla
 from matplotlib.lines import Line2D
 
 from .element_properties import ElementProperties, param
@@ -32,6 +33,9 @@ class PostProcessor:
         nodal_displacements: np.ndarray,
         number_elements: np.ndarray,
         alpha: float,
+        alpha_counter: int,
+        alpha_values: np.ndarray,
+        cond_numbers: np.ndarray,
         E: float,
         A: float,
         P: float,
@@ -43,6 +47,9 @@ class PostProcessor:
         self.nodal_displacements = nodal_displacements
         self.number_elements = number_elements
         self.alpha = alpha
+        self.alpha_counter = alpha_counter
+        self.alpha_values = alpha_values
+        self.cond_numbers = cond_numbers
         self.E = E
         self.A = A
         self.P = P
@@ -84,20 +91,73 @@ class PostProcessor:
         """
 
         number_elements = self.number_elements
+        alpha_counter = self.alpha_counter
+        alpha_values = self.alpha_values
         K = self.global_stiffness_matrix
         u = self.nodal_displacements
 
-        epsilon_h[0, i] = 0.5 * (u.T @ (K @ u))
+        epsilon_h[alpha_counter, i] = 0.5 * (u.T @ (K @ u))
 
-        if i == (number_elements.size - 1):
-            print(
-                f"\n- Total strain energy in the system (from FEM global computation): epsilon_h = {epsilon_h}"
-            )
+        if alpha_counter == (alpha_values.size - 1):
+            if i == (number_elements.size - 1):
+                print(
+                    f"\n- Total strain energy in the system (from FEM global computation): epsilon_h = {epsilon_h}"
+                )
 
         return epsilon_h
 
+    def conditioning_numbers_of_K(self, i: int) -> np.ndarray:
+        """
+        Computes the conditioning number of the matrix K.
+        It's a matrix and every row is related to a different value of alpha.
+
+        Returns:
+            cond_numbers.
+        """
+
+        alpha_counter = self.alpha_counter
+        K = self.global_stiffness_matrix
+        cond_numbers = self.cond_numbers
+
+        # 1. Calcola l'autovalore massimo (k=1, Largest Magnitude)
+        # return_eigenvectors=False risparmia memoria
+        max_eig = spla.norm(K, np.inf)
+
+        # 2. Calcola l'autovalore minimo (k=1, Smallest Magnitude)
+        # sigma=0 usa lo shift-invert mode che è molto più veloce per trovare valori vicino allo 0
+
+        try:
+            min_eig = spla.eigsh(
+                K,
+                k=1,
+                sigma=0,  # Shift-Invert (cerca l'inverso, velocissimo per il minimo)
+                which="LM",  # Largest Magnitude dell'inverso
+                return_eigenvectors=False,
+                tol=1e-2,  # FONDAMENTALE: Ci accontentiamo dell'1% di errore
+                ncv=10,  # Aumentiamo i vettori di Lanczos per convergere in meno iterazioni
+            )[0]
+
+            # Se min_eig è troppo vicino a zero, evita divisioni assurde
+            if abs(min_eig) < 1e-15:
+                c = np.inf
+            else:
+                c = abs(max_eig / min_eig)
+
+        except (RuntimeError, ValueError):
+            # Se il calcolo esplode (matrice singolare), il condizionamento è infinito
+            c = np.inf
+
+        # 3. Salva il risultato nella matrice e restituisci la matrice
+        cond_numbers[alpha_counter, i] = c
+
+        print(f"Condition Number (stimato): {cond_numbers}")
+
+        return cond_numbers
+
     def compute_strain_energy_analytical(
-        self, i: int, epsilon: np.ndarray
+        self,
+        i: int,
+        epsilon: np.ndarray,
     ) -> np.ndarray:
         """
         Computes the analytical strain energy for the pull-out of a bar with E and A parameters in a medium with stiffness k.
@@ -108,17 +168,22 @@ class PostProcessor:
         """
 
         alpha = self.alpha
+        alpha_counter = self.alpha_counter
+        alpha_values = self.alpha_values
         E = self.E
         A = self.A
         P = self.P
         number_elements = self.number_elements
 
-        epsilon[0, i] = (P / (2.0 * alpha * E * A)) * (-np.exp(-20.0 * alpha) + 1.0)
+        epsilon[alpha_counter, i] = (P / (2.0 * alpha * E * A)) * (
+            -np.exp(-20.0 * alpha) + 1.0
+        )
 
-        if i == (number_elements.size - 1):
-            print(
-                f"\n- Analytical solution of strain energy in the system: epsilon = {epsilon}"
-            )
+        if alpha_counter == (alpha_values.size - 1):
+            if i == (number_elements.size - 1):
+                print(
+                    f"\n- Analytical solution of strain energy in the system: epsilon = {epsilon}"
+                )
 
         return epsilon
 
@@ -135,11 +200,17 @@ class PostProcessor:
         """
 
         number_elements = self.number_elements
+        alpha_counter = self.alpha_counter
+        alpha_values = self.alpha_values
 
-        e[0, i] = np.sqrt((epsilon[0, i] - epsilon_h[0, i]) / epsilon[0, i])
+        e[alpha_counter, i] = (
+            (epsilon[alpha_counter, i] - epsilon_h[alpha_counter, i])
+            / epsilon[alpha_counter, i]
+        ) ** 0.5
 
-        if i == (number_elements.size - 1):
-            print(f"\n- Relative error in the energy norm: e = {e}")
+        if alpha_counter == (alpha_values.size - 1):
+            if i == (number_elements.size - 1):
+                print(f"\n- Relative error in the energy norm: e = {e}")
 
         return e
 
@@ -157,15 +228,30 @@ class PostProcessor:
         """
 
         number_elements = self.number_elements
-        epsilon = epsilon.flatten()
-        epsilon_h = epsilon_h.flatten()
+        alpha_values = self.alpha_values
 
-        plt.plot(number_elements, epsilon, marker="o", linestyle="-", color="r")
-        plt.plot(number_elements, epsilon_h, marker="o", linestyle="-", color="b")
+        for i in range(alpha_values.size):
+            plt.plot(
+                number_elements,
+                epsilon[i, :].flatten(),
+                marker="^",
+                linestyle="-",
+                color="r",
+            )
+            plt.plot(
+                number_elements,
+                epsilon_h[i, :].flatten(),
+                marker="o",
+                linestyle="-",
+                label=f"epsilon_h for alpha = {alpha_values[i]}",
+            )
 
         plt.xlabel("Number of elements")
         plt.ylabel("Energy")
-        plt.title("Solution of strain energy vs number of elements")
+        plt.title(
+            f"Solution of strain energy vs number of elements for α = {alpha_values}"
+        )
+        plt.legend()
         plt.grid(True)
         plt.show()
 
@@ -182,26 +268,47 @@ class PostProcessor:
         """
 
         number_elements = self.number_elements
-        e = e.flatten()
+        alpha_values = self.alpha_values
 
-        plt.plot(number_elements, e, marker="o", linestyle="-")
+        for i in range(alpha_values.size):
+            plt.plot(
+                number_elements,
+                e[i, :].flatten(),
+                marker="o",
+                linestyle="-",
+                label=f"alpha = {alpha_values[i]}",
+            )
         plt.xlabel("Number of elements")
         plt.ylabel("Error in energy norm")
-        plt.title("Error in energy norm in function of number of elements")
-        plt.grid(True)  # Fondamentale per leggere i grafici di convergenza
+        plt.title(
+            f"Error in energy norm in function of number of elements for α = {alpha_values}"
+        )
+        plt.legend()
+        plt.grid(True)
         plt.show()
 
-        plt.plot(h, e, marker="x", linestyle="-")
+        for i in range(alpha_values.size):
+            plt.plot(
+                h,
+                e[i, :].flatten(),
+                marker="x",
+                linestyle="-",
+                label=f"alpha = {alpha_values[i]}",
+            )
         plt.xlabel("Element size h")
         plt.ylabel("Error in energy")
-        plt.title("Error in energy norm in function of element size h")
-        plt.grid(True)  # Fondamentale per leggere i grafici di convergenza
+        plt.title(
+            f"Error in energy norm in function of element size h for α = {alpha_values}"
+        )
+        plt.legend()
+        plt.grid(True)
         plt.show()
 
     def plot_convergence_rate(
         self,
         e: np.ndarray,
         h: np.ndarray,
+        cond_numbers: np.ndarray,
     ) -> None:
         """
         Print of the covergence rate in energy.
@@ -211,19 +318,50 @@ class PostProcessor:
         """
 
         number_elements = self.number_elements
-        e = e.flatten()
+        alpha_values = self.alpha_values
 
-        plt.loglog(number_elements, e, marker="o", linestyle="-", color="b")
+        for i in range(alpha_values.size):
+            plt.loglog(
+                number_elements,
+                e[i, :].flatten(),
+                marker="o",
+                linestyle="-",
+                label=f"Error for alpha = {alpha_values[i]}",
+            )
+
+            plt.loglog(
+                number_elements,
+                cond_numbers[i, :].flatten(),
+                marker="*",
+                linestyle="-",
+                label=f"cond. number for alpha = {alpha_values[i]}",
+            )
         plt.xlabel("Number of elements (Log scale)")
-        plt.ylabel("Error in energy norm (Log scale)")
-        plt.title("Convergence Rate")
+        plt.ylabel("Error in energy and conditioning numbers (Log scale)")
+        plt.title(f"Convergence Rate and Conditioning number for α = {alpha_values}")
+        plt.legend()
         plt.grid(True)
         plt.show()
 
-        plt.loglog(h, e, marker="x", linestyle="-", color="b")
+        for i in range(alpha_values.size):
+            plt.loglog(
+                h,
+                e[i, :].flatten(),
+                marker="x",
+                linestyle="-",
+                label=f"Error for alpha = {alpha_values[i]}",
+            )
+            plt.plot(
+                h,
+                cond_numbers[i, :].flatten(),
+                marker="*",
+                linestyle="-",
+                label=f"cond. number for alpha = {alpha_values[i]}",
+            )
         plt.xlabel("Element size h (Log scale)")
-        plt.ylabel("Error in energy norm (Log scale)")
-        plt.title("Convergence Rate")
+        plt.ylabel("Error in energy and conditioning numbers (Log scale)")
+        plt.title(f"Convergence Rate and Conditioning number for α = {alpha_values}")
+        plt.legend()
         plt.grid(True)
         plt.show()
 

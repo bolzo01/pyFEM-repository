@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian" compressor="vtkZLibDataCompressor">
+<!--This file was created by meshio v5.3.5-->
+<UnstructuredGrid>
+<Piece NumberOfPoints="41" NumberOfCells="40">
+<Points>
+<DataArray type="Float64" Name="Points" NumberOfComponents="3" format="binary">
+AQAAAACAAADYAwAApgAAAA==eJx9zqkOwkAUheF6FArFu4xCVaFGoaowVKGakGA6qggmadIKQpqGEELYyr4VeLE+AP/tlV9OzrmOU3NqoNhH7H4o5CfsZir0xOw6Ffpn7HYu7GbsQS78s2D3lux6xe6u2dWGPdmy2x17tGc3B/ZxwR4c2Ycndv/M3r+we1f23o1d39m7D3b3yd55sas3e7tkTwRvfdit4M0veyR448du/r0C6qs0oQ==
+</DataArray>
+</Points>
+<Cells>
+<DataArray type="Int64" Name="connectivity" format="binary">
+AQAAAACAAACAAgAAWAAAAA==eJxdxUkCgQAAAMAsoYUUZSkRLf7/QoecZi4TBLMFL3nFaw55w1veccQxJ5zyng+c8ZFzLvjEZy654gtf+cZ3rrnhB7f85Bd3/OYP9zzwyBN///8AUOsGQQ==
+</DataArray>
+<DataArray type="Int64" Name="offsets" format="binary">
+AQAAAACAAABAAQAAWgAAAA==eJwtxdEGwgAAAMAkk8lMkklmZmaSZGaSyczMJNn/f00P3b3cevW3ceCtQ+8cOfbeBx+d+OSzU2fOXbh05Yuvvvnu2o1bP/x055d7Dx49efbbH3+9+AfO3gZp
+</DataArray>
+<DataArray type="Int64" Name="types" format="binary">
+AQAAAACAAABAAQAAEAAAAA==eJxjZoAA5lGaLBoATiAAeQ==
+</DataArray>
+</Cells>
+<PointData>
+<DataArray type="Float64" Name="Temperature" format="binary">
+AQAAAACAAABIAQAA2gAAAA==eJxjYIAACbvYiVl/j9pP7pfq0gy7bB9vfeKMZdNN+3+h+65LfL1rH2jz+d6Hzgf25qu/W7rNemhfwOi3ZbnfI/vmtpIvCw49sg8+uGHRN67H9rxHJNq2mj22/1S48HxkwGN7XalPj1/GPbaXinl6703aY3vLn89WGmY/tl9tdLM2Nfex/UqGX1L1eY/tg6u+CbPnP7YvUZLkcwPSoZs/nEkA0oG5TbIZSHyYPEw9TD/MPJj5MPtg9sPcA3MfzL0w98P8A/MfzL8w/8PCAxY+sPCCBh8DACXjoIs=
+</DataArray>
+</PointData>
+</Piece>
+</UnstructuredGrid>
+</VTKFile>

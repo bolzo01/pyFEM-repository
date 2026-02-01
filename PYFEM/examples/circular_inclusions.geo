@@ -117,3 +117,5 @@ Physical Point("bottom left corner") = {1}; //this is the label given to Point(1
 Physical Curve("left side") = {4};
 Physical Curve("right side") = {2};
 
+//+
+Physical Surface("inclusion", 2) += {1, 3};

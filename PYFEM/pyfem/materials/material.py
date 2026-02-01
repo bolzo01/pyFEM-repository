@@ -23,7 +23,7 @@ they need (e.g., thermal diffusivity) without being forced to
 implement mechanical notions such as stress or tangent.
 
 Created: 2025/10/18 23:11:22
-Last modified: 2025/12/09 01:50:39
+Last modified: 2026/01/29 18:09:31
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -215,3 +215,47 @@ class Diffusion1D(Material):
 
     def __repr__(self) -> str:
         return f"Diffusion1D(alpha={self.alpha})"
+
+
+class Diffusion2D(Material):
+    """
+    Simple 2D thermal diffusion material model.
+
+    This material is used in heat-transfer problems governed by
+
+        ρ c (∂T/∂t) = ∇(D∇T) + s
+
+    Parameters
+    ----------
+    ρ : float
+        Density [kg/m³]
+    c : float
+        specific heat capacity [J/(kg*K)]
+    s : float
+        heat source per unit volume [K/s or °C/s]
+    D : np.array
+        conductivity matrix - for isotropic materials, D = k * I where k is condutivity [W/(m*K)]
+    alpha : float
+        Thermal diffusivity coefficient [m²/s].
+
+    Notes
+    -----
+    - This class is used by diffusion-type solvers, which read `alpha`
+      directly when assembling the diffusion operator.
+    - Source terms s(x) are handled at the element/solver level.
+    - Diffusion2D does *not* define mechanical notions such as stress or
+      tangent; it is purely a thermal material and therefore inherits from
+      the generic `Material` base, not `MechanicalMaterial`.
+    """
+
+    def __init__(self, rho: float, c: float, k: float, alpha: float):
+        super().__init__(name="Diffusion2D")
+        self.rho = float(rho)
+        self.c = float(c)
+        self.k = float(k)
+        self.alpha = float(alpha)
+
+    def __repr__(self) -> str:
+        return (
+            f"Diffusion2D(rho={self.rho}, c={self.c}, k={self.k}, alpha={self.alpha})"
+        )

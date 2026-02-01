@@ -3,7 +3,7 @@
 Element-problem compatibility registry and validation.
 
 Created: 2025/10/30 01:11:17
-Last modified: 2025/12/09 00:52:05
+Last modified: 2026/01/29 16:42:07
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -21,6 +21,7 @@ ELEMENT_PROBLEM_COMPATIBILITY: dict[str, set[tuple[Physics, Dimension]]] = {
     "tetra": {(Physics.MECHANICS, Dimension.D3)},
     # Heat / diffusion elements
     "bar_1D_heat": {(Physics.HEAT_TRANSFER, Dimension.D1)},
+    "triangle_heat": {(Physics.HEAT_TRANSFER, Dimension.D2)},
 }
 
 

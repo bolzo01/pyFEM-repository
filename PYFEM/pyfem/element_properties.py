@@ -28,7 +28,7 @@ The registry is built by calling:
     ])
 
 Created: 2025/10/19 00:16:39
-Last modified: 2025/12/08 17:00:07
+Last modified: 2026/01/29 16:41:18
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -144,6 +144,7 @@ REQUIRED_PARAMS: dict[str, set[str]] = {
     "bar3_1D": {"A"},
     "bar_2D": {"A"},
     "triangle": {"t"},
+    "triangle_heat": {"t"},
     "tetra": set(),
     # "beam_1D": {"A", "I"},
 }
@@ -153,6 +154,10 @@ type MetaSpec = set[str | int]
 ALLOWED_META: dict[str, dict[str, MetaSpec]] = {
     "spring_1D": {},
     "bar_1D": {
+        "interpolation": {"linear", "quadratic", "cubic"},
+        "integration": {"analytical", "full", "reduced", 1, 2, 3},
+    },
+    "triangle_heat": {
         "interpolation": {"linear", "quadratic", "cubic"},
         "integration": {"analytical", "full", "reduced", 1, 2, 3},
     },

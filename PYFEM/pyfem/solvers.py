@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/12/09 16:35:35
+Last modified: 2026/02/02 20:14:12
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -391,13 +391,44 @@ class DiffusionExplicitSolver:
             raise ValueError("No valid diffusivity found in materials")
 
         # Conservative safety factor for 1D: 0.4 instead of theoretical 0.5
-        safety_factor = 0.4
+        safety_factor = 0.9
         dt_crit = safety_factor * min_dx_sq / max_alpha
 
         # Store for reporting
         self._dt_critical = dt_crit
         self._min_element_size = np.sqrt(min_dx_sq)
         self._max_diffusivity = max_alpha
+
+        return dt_crit
+
+    def compute_critical_timestep_2D(self) -> float:
+        """
+        Calculate the critical time step for stability.
+
+        For forward Euler: Δt_crit = min(m_i/K_ii)
+        where: m_i = M_lumped[i]
+               K_ii = K[i, i] = diagonal of stiffness matrix
+
+        Returns:
+            Critical time step in seconds
+        """
+
+        self.M_lumped, self.K = self.assemble_mass_and_stiffness()
+
+        K_diag = np.diag(self.K)
+        # Avoid division by zero
+        K_diag_safe = K_diag.copy()
+        K_diag_safe[K_diag_safe < 1e-15] = 1e-15
+
+        # dt_crit computation
+        dt = self.M_lumped / K_diag_safe
+        dt_crit_theorethical = float(np.min(dt))
+
+        # Safety factor of 0.9
+        dt_crit = dt_crit_theorethical * 0.9
+
+        # Store for reporting
+        self._dt_critical = dt_crit
 
         return dt_crit
 
@@ -412,39 +443,79 @@ class DiffusionExplicitSolver:
         Returns:
             True if stable, False otherwise
         """
-        dt_crit = self.compute_critical_timestep()
+        for e in range(self.mesh.num_elements):
+            conn = self.mesh.element_connectivity[e]
+            coords = self.mesh.points[conn]
+            if coords.ndim == 1:
+                dt_crit = self.compute_critical_timestep()
 
-        is_stable = dt <= dt_crit
-        ratio = dt / dt_crit
+                is_stable = dt <= dt_crit
+                ratio = dt / dt_crit
 
-        if verbose:
-            print("\n" + "=" * 70)
-            print("STABILITY CHECK: Forward Euler Time Stepping")
-            print("=" * 70)
-            print(f"  Minimum element size:      {self._min_element_size:.3e} m")
-            print(f"  Maximum diffusivity:       {self._max_diffusivity:.3e} m²/s")
-            print(
-                f"  Critical time step:        {dt_crit:.3e} s ({dt_crit / 3600:.2f} hours)"
-            )
-            print(f"  Requested time step:       {dt:.3e} s ({dt / 3600:.2f} hours)")
-            print(f"  Stability ratio (Δt/Δt_c): {ratio:.3f}")
-
-            if is_stable:
-                if ratio > 0.8:
-                    print("  Status: MARGINALLY STABLE (ratio > 0.8)")
+                if verbose:
+                    print("\n" + "=" * 70)
+                    print("STABILITY CHECK: Forward Euler Time Stepping")
+                    print("=" * 70)
                     print(
-                        f"  Recommendation: Reduce Δt to {0.5 * dt_crit:.3e} s for safety"
+                        f"  Minimum element size:      {self._min_element_size:.3e} m"
                     )
-                else:
-                    print("  Status: ✓ STABLE")
-            else:
-                print("  Status: UNSTABLE - SOLUTION WILL DIVERGE!")
-                print(f"  Required: Δt ≤ {dt_crit:.3e} s")
-            print("=" * 70)
+                    print(
+                        f"  Maximum diffusivity:       {self._max_diffusivity:.3e} m²/s"
+                    )
+                    print(
+                        f"  Critical time step:        {dt_crit:.3e} s ({dt_crit / 3600:.2f} hours)"
+                    )
+                    print(
+                        f"  Requested time step:       {dt:.3e} s ({dt / 3600:.2f} hours)"
+                    )
+                    print(f"  Stability ratio (Δt/Δt_c): {ratio:.3f}")
+
+                    if is_stable:
+                        if ratio > 0.8:
+                            print("  Status: MARGINALLY STABLE (ratio > 0.8)")
+                            print(
+                                f"  Recommendation: Reduce Δt to {0.5 * dt_crit:.3e} s for safety"
+                            )
+                        else:
+                            print("  Status: ✓ STABLE")
+                    else:
+                        print("  Status: UNSTABLE - SOLUTION WILL DIVERGE!")
+                        print(f"  Required: Δt ≤ {dt_crit:.3e} s")
+                    print("=" * 70)
+            elif coords.ndim == 2:
+                dt_crit = self.compute_critical_timestep_2D()
+
+                is_stable = dt <= dt_crit
+                ratio = dt / dt_crit
+
+                if verbose:
+                    print("\n" + "=" * 70)
+                    print("STABILITY CHECK: Forward Euler Time Stepping")
+                    print("=" * 70)
+                    print(
+                        f"  Critical time step:        {dt_crit:.3e} s ({dt_crit / 3600:.2f} hours)"
+                    )
+                    print(
+                        f"  Requested time step:       {dt:.3e} s ({dt / 3600:.2f} hours)"
+                    )
+                    print(f"  Stability ratio (Δt/Δt_c): {ratio:.3f}")
+
+                    if is_stable:
+                        if ratio > 0.8:
+                            print("  Status: MARGINALLY STABLE (ratio > 0.8)")
+                            print(
+                                f"  Recommendation: Reduce Δt to {0.5 * dt_crit:.3e} s for safety"
+                            )
+                        else:
+                            print("  Status: ✓ STABLE")
+                    else:
+                        print("  Status: UNSTABLE - SOLUTION WILL DIVERGE!")
+                        print(f"  Required: Δt ≤ {dt_crit:.3e} s")
+                    print("=" * 70)
 
         return is_stable
 
-    def assemble_mass_and_stiffness(self) -> None:
+    def assemble_mass_and_stiffness(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Assemble global lumped mass vector M_lumped and stiffness K
         using element registry pattern.
@@ -494,6 +565,7 @@ class DiffusionExplicitSolver:
             for a_local, a_global in enumerate(edofs):
                 for b_local, b_global in enumerate(edofs):
                     self.K[a_global, b_global] += K_e[a_local, b_local]
+        return self.M_lumped, self.K
 
     def assemble_force_vector(self, time: float = 0.0) -> None:
         """

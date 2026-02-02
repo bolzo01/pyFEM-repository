@@ -22,7 +22,7 @@ Notes:
       and raises a ValueError if violated.
 
 Created: 2025/12/08 16:15:24
-Last modified: 2026/01/31 17:47:42
+Last modified: 2026/02/01 19:06:06
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -38,14 +38,29 @@ def main() -> np.ndarray:
     mesh = pyfem.Mesh.from_gmsh("heat_exchanger.msh", dim=2)
 
     # 2. Materials
-    rho = 1200.0  # density [kg/m³]
-    c = 123.0  # specific heat capacity [J/(kg*K)]
-    k = 456.0  # thermal conductivity [W/(m*K)]
-    alpha = k / (rho * c)  # thermal diffusivity [m²/s]
+    # rho   = density [kg/m³]
+    # c     = specific heat capacity [J/(kg*K)]
+    # k     = thermal conductivity [W/(m*K)]
+    # alpha = k / (rho * c) = thermal diffusivity [m²/s]
+
+    # Steel  -> AISI 316L (EN 1.4404)
+    # Copper -> Copper DHP (UNS C12200 / CW024A)
+    # Water  -> tap water
+
     materials = pyfem.make_materials(
         [
-            #  alpha: thermal diffusivity [m²/s]
-            ("steel", pyfem.Diffusion2D(rho=rho, c=c, k=k, alpha=alpha)),
+            (
+                "steel",
+                pyfem.Diffusion2D(
+                    rho=8000.0, c=500.0, k=15.0, alpha=(15.0 / (8000.0 * 500.0))
+                ),
+            ),
+            (
+                "water",
+                pyfem.Diffusion2D(
+                    rho=1000.0, c=4182.0, k=0.6, alpha=(0.6 / (1000.0 * 4184.0))
+                ),
+            ),
         ]
     )
 
@@ -63,6 +78,20 @@ def main() -> np.ndarray:
         ]
     )
 
+    element_properties = pyfem.make_element_properties(
+        [
+            (
+                "tube_hot",
+                "tube_cold",
+                pyfem.ElementProperty(
+                    kind="triangle_heat",
+                    params={"source": 0.0, "t": 1.0},  # °C/s , m
+                    material="water",
+                ),
+            ),
+        ]
+    )
+
     # 4. Create Model
     problem = pyfem.Problem(
         pyfem.Physics.HEAT_TRANSFER,
@@ -74,18 +103,35 @@ def main() -> np.ndarray:
     print(model)
 
     # Initial temperature T0(x)
+
     ndofs = model.dof_space.total_dofs
+    points = mesh.points
     T0 = np.zeros(ndofs, dtype=float)
 
-    for node, x in enumerate(points):
+    for node, coords in enumerate(points):
         dof = model.dof_space.get_global_dof(node, pyfem.DOFType.TEMPERATURE)
-        T0[dof] = 0.0
 
-        # Bar initially cold, except middle node at 50
-        # if node == len(points) // 2:
-        #     T0[dof] = 50.0
-        # else:
-        #     T0[dof] = 0.0
+        # 1. Extract actual node coordinates x and y
+        x_node, y_node = coords[0], coords[1]
+
+        # 2. Distance from tube centers
+        # 2nd tube centered at (10.0, 3.33) with radius 2.0
+        dist_tube_1 = np.sqrt((x_node - 10.0) ** 2 + (y_node - 3.33) ** 2)
+        # 4th tube centered at (15.0, 6.66) with radius 2.0
+        dist_tube_4 = np.sqrt((x_node - 15.0) ** 2 + (y_node - 6.66) ** 2)
+        # 6th tube centered at (5.0, 6.66) with radius 2.0
+        dist_tube_6 = np.sqrt((x_node - 5.0) ** 2 + (y_node - 3.33) ** 2)
+
+        # 3. Set initial temperature based on distance from tube centers
+        tube_radius = 2.0
+        if (
+            (dist_tube_1 <= tube_radius)
+            or (dist_tube_4 <= tube_radius)
+            or (dist_tube_6 <= tube_radius)
+        ):
+            T0[dof] = 80.0  # Hot tube temperature
+        else:
+            T0[dof] = 20.0  # Matrix and cold tube temperature
 
     model.set_initial_temperature(T0)
 
@@ -103,7 +149,7 @@ def main() -> np.ndarray:
 
     # Time discretization parameters
     increments = 400  # number of time steps
-    total_time = 50000.0 * 365 * 24 * 60 * 60  # total physical time in seconds
+    total_time = 60 * 5  # total physical time in seconds
 
     # STABILITY CHECK FOR EXPLICIT SCHEME (Fourier number)
     #
@@ -143,7 +189,7 @@ def main() -> np.ndarray:
         output_fields=["temperature"],
         output_frequency=20,  # dump every 20th time step
         output_save_to="vtk_heat_results",  # folder
-        output_file="heat_step.vtu",  # base name
+        output_file="heat_step_steel.vtu",  # base name
     )
 
     # use the warp by scalar filter in paraview to see the temperature profile

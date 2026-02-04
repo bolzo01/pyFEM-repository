@@ -22,13 +22,14 @@ Notes:
       and raises a ValueError if violated.
 
 Created: 2025/12/08 16:15:24
-Last modified: 2026/02/01 19:06:06
+Last modified: 2026/02/04 15:32:51
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
 import numpy as np
 
 import pyfem
+from pyfem.solvers import DiffusionExplicitSolver
 
 
 def main() -> np.ndarray:
@@ -75,13 +76,15 @@ def main() -> np.ndarray:
                     material="steel",
                 ),
             ),
-        ]
-    )
-
-    element_properties = pyfem.make_element_properties(
-        [
             (
                 "tube_hot",
+                pyfem.ElementProperty(
+                    kind="triangle_heat",
+                    params={"source": 0.0, "t": 1.0},  # °C/s , m
+                    material="water",
+                ),
+            ),
+            (
                 "tube_cold",
                 pyfem.ElementProperty(
                     kind="triangle_heat",
@@ -148,32 +151,14 @@ def main() -> np.ndarray:
     # PROCESSING: Solve transient diffusion problem
 
     # Time discretization parameters
-    increments = 400  # number of time steps
+    increments = 500  # number of time steps
     total_time = 60 * 5  # total physical time in seconds
 
     # STABILITY CHECK FOR EXPLICIT SCHEME (Fourier number)
     #
-    # Stability condition for 1D explicit heat equation:
-    #   Fo = alpha * dt / dx^2 <= 0.5
-    #
-    #   Fo_max is the maximum Fourier number (often simply called the Fo number)
-    #   associated with your chosen time step and spatial discretization.
-    #
-    # For non-uniform meshes we use the smallest element length.
-
-    dx_all = np.diff(points)
-    dx_min = dx_all.min()
+    solver = DiffusionExplicitSolver(model)
     dt = total_time / increments
-    dt_crit = dx_min**2 / (2.0 * alpha)
-    Fo_max = alpha * dt / dx_min**2
-
-    print("\n- Explicit time step (informative check):")
-    print(f"  dx_min   = {dx_min:.6e} m")
-    print(f"  alpha    = {alpha:.6e} m^2/s")
-    print(f"  dt       = {dt:.6e} s")
-    print(f"  dt_crit  = {dt_crit:.6e} s")
-    print(f"  Fo_max   = {Fo_max:.6f}")
-
+    is_stable = solver.check_stability(dt, verbose=True)
     # ------------------------------------------------------------------
 
     # Initialize model state
@@ -195,7 +180,7 @@ def main() -> np.ndarray:
     # use the warp by scalar filter in paraview to see the temperature profile
 
     # Execute step (returns updated state)
-    model_state = step.execute(model, model_state, use_sparse=False)
+    model_state = step.execute(model, model_state)
 
     # POSTPROCESSING: here we simply print final temperature field
 

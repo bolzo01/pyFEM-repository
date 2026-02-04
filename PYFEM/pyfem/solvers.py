@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2026/02/02 20:14:12
+Last modified: 2026/02/04 17:19:47
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -412,10 +412,16 @@ class DiffusionExplicitSolver:
         Returns:
             Critical time step in seconds
         """
+        from scipy import sparse
 
-        self.M_lumped, self.K = self.assemble_mass_and_stiffness()
+        use_sparse = True
+        self.M_lumped, self.K = self.assemble_mass_and_stiffness(use_sparse)
 
-        K_diag = np.diag(self.K)
+        if sparse.issparse(self.K):
+            K_diag = self.K.diagonal()  # Sparse matrix method
+        else:
+            K_diag = np.diag(self.K)  # Dense matrix method (Numpy)
+
         # Avoid division by zero
         K_diag_safe = K_diag.copy()
         K_diag_safe[K_diag_safe < 1e-15] = 1e-15
@@ -433,6 +439,85 @@ class DiffusionExplicitSolver:
         return dt_crit
 
     def check_stability(self, dt: float, verbose: bool = False) -> bool:
+        """
+        Check if the given time step satisfies stability condition.
+
+        Args:
+            dt: Proposed time step
+            verbose: Print stability information
+
+        Returns:
+            True if stable, False otherwise
+        """
+
+        # We understand the mesh dimension from the points array dimension
+        ndim = self.mesh.points.shape[1]
+
+        # We compute dt_crit
+        if ndim == 2:
+            dt_crit = self.compute_critical_timestep_2D()
+
+            is_stable = dt <= dt_crit
+            ratio = dt / dt_crit
+
+            if verbose:
+                print("\n" + "=" * 70)
+                print("STABILITY CHECK: Forward Euler Time Stepping")
+                print("=" * 70)
+                print(
+                    f"  Critical time step:        {dt_crit:.3e} s ({dt_crit / 3600:.2f} hours)"
+                )
+                print(
+                    f"  Requested time step:       {dt:.3e} s ({dt / 3600:.2f} hours)"
+                )
+                print(f"  Stability ratio (Δt/Δt_c): {ratio:.3f}")
+
+                if is_stable:
+                    if ratio > 0.8:
+                        print("  Status: MARGINALLY STABLE (ratio > 0.8)")
+                        print(
+                            f"  Recommendation: Reduce Δt to {0.5 * dt_crit:.3e} s for safety"
+                        )
+                    else:
+                        print("  Status: ✓ STABLE")
+                else:
+                    print("  Status: UNSTABLE - SOLUTION WILL DIVERGE!")
+                    print(f"  Required: Δt ≤ {dt_crit:.3e} s")
+                print("=" * 70)
+
+        elif ndim == 1:
+            dt_crit = self.compute_critical_timestep()
+
+            is_stable = dt <= dt_crit
+            ratio = dt / dt_crit
+
+            if verbose:
+                print("\n" + "=" * 70)
+                print("STABILITY CHECK: Forward Euler Time Stepping")
+                print("=" * 70)
+                print(
+                    f"  Critical time step:        {dt_crit:.3e} s ({dt_crit / 3600:.2f} hours)"
+                )
+                print(
+                    f"  Requested time step:       {dt:.3e} s ({dt / 3600:.2f} hours)"
+                )
+                print(f"  Stability ratio (Δt/Δt_c): {ratio:.3f}")
+                if is_stable:
+                    if ratio > 0.8:
+                        print("  Status: MARGINALLY STABLE (ratio > 0.8)")
+                        print(
+                            f"  Recommendation: Reduce Δt to {0.5 * dt_crit:.3e} s for safety"
+                        )
+                    else:
+                        print("  Status: ✓ STABLE")
+                else:
+                    print("  Status: UNSTABLE - SOLUTION WILL DIVERGE!")
+                    print(f"  Required: Δt ≤ {dt_crit:.3e} s")
+                print("=" * 70)
+
+        return is_stable
+
+    def check_stability_vecio(self, dt: float, verbose: bool = False) -> bool:
         """
         Check if the given time step satisfies stability condition.
 
@@ -515,16 +600,34 @@ class DiffusionExplicitSolver:
 
         return is_stable
 
-    def assemble_mass_and_stiffness(self) -> tuple[np.ndarray, np.ndarray]:
+    def assemble_mass_and_stiffness(
+        self, use_sparse: bool = True
+    ) -> tuple[np.ndarray, np.ndarray | sparse.spmatrix]:
         """
         Assemble global lumped mass vector M_lumped and stiffness K
         using element registry pattern.
         """
+        from scipy import sparse
+
         from .elements.element_registry import create_element
 
-        # Reset global containers
+        # Reset Mass matrix
         self.M_lumped[:] = 0.0
-        self.K[:, :] = 0.0
+
+        # Initialize stiffness matrix
+        if use_sparse:
+            # Dizionario per accumulare i valori sparsi: Key=(row, col), Value=stiffness
+            K_triplets: dict[tuple[int, int], float] = {}
+        else:
+            # Se usiamo denso, resettiamo la matrice esistente
+            # Nota: self.K deve essere stata inizializzata come densa in __init__
+            if sparse.issparse(self.K):
+                # Se era sparsa e ora vogliamo densa, dobbiamo ricrearla
+                self.K = np.zeros(
+                    (self.dof_space.total_dofs, self.dof_space.total_dofs)
+                )
+            else:
+                self.K[:, :] = 0.0
 
         for e in range(self.mesh.num_elements):
             conn = self.mesh.element_connectivity[e]
@@ -533,10 +636,9 @@ class DiffusionExplicitSolver:
 
             # Create element instance through registry
             element = create_element(elem_prop, e)
-
             coords = self.mesh.points[conn]
 
-            # Get material (Diffusion1D)
+            # Get material
             material = None
             if elem_prop.material is not None:
                 material = self.materials[elem_prop.material]
@@ -554,7 +656,6 @@ class DiffusionExplicitSolver:
             )
 
             temp_dof = self._temperature_dof_type
-
             edofs = [self.dof_space.get_global_dof(node, temp_dof) for node in conn]
 
             # Lump mass matrix (row-sum)
@@ -562,9 +663,42 @@ class DiffusionExplicitSolver:
                 self.M_lumped[a_global] += M_e[a_local, :].sum()
 
             # Assemble stiffness
-            for a_local, a_global in enumerate(edofs):
-                for b_local, b_global in enumerate(edofs):
-                    self.K[a_global, b_global] += K_e[a_local, b_local]
+            if use_sparse:
+                # Accumulate into dictionary (sums duplicates manually)
+                for a_local, a_global in enumerate(edofs):
+                    for b_local, b_global in enumerate(edofs):
+                        key = (a_global, b_global)
+                        val = K_e[a_local, b_local]
+                        if val != 0.0:  # Ignore pure zeros
+                            K_triplets[key] = K_triplets.get(key, 0.0) + val
+            else:
+                # Metodo Denso Classico
+                for a_local, a_global in enumerate(edofs):
+                    for b_local, b_global in enumerate(edofs):
+                        self.K[a_global, b_global] += K_e[a_local, b_local]
+
+        if use_sparse:
+            # Remove entries that cancel to ~0 due to numerical roundoff
+            tolerance = 1e-13
+            K_filtered_triplets = [
+                (i, j, v) for (i, j), v in K_triplets.items() if abs(v) > tolerance
+            ]
+
+            # Setting up data for Scipy (COO format)
+            n_entries = len(K_filtered_triplets)
+            data = np.empty(n_entries, dtype=float)
+            row = np.empty(n_entries, dtype=int)
+            col = np.empty(n_entries, dtype=int)
+
+            for idx, (i, j, value) in enumerate(K_filtered_triplets):
+                row[idx] = i
+                col[idx] = j
+                data[idx] = value
+
+            # Single conversion: COO -> CSC
+            n_dof = self.dof_space.total_dofs
+            self.K = sparse.csc_matrix((data, (row, col)), shape=(n_dof, n_dof))
+
         return self.M_lumped, self.K
 
     def assemble_force_vector(self, time: float = 0.0) -> None:

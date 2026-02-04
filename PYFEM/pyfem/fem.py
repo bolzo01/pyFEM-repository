@@ -3,7 +3,7 @@
 Module for FEA procedures.
 
 Created: 2025/10/08 17:11:28
-Last modified: 2025/11/21 23:12:07
+Last modified: 2026/02/04 16:04:13
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -77,6 +77,7 @@ def assemble_global_stiffness_matrix(
             (i, j, v) for (i, j), v in triplet_dict.items() if abs(v) > tolerance
         ]
 
+        # Setting up data for Scipy (COO format)
         n_entries = len(filtered_triplets)
         data = np.empty(n_entries, dtype=float)
         row = np.empty(n_entries, dtype=int)

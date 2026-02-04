@@ -12,7 +12,7 @@ where:
     s = heat source per unit volume [K/s or °C/s]
 
 Created: 2025/12/08 09:01:27
-Last modified: 2026/01/29 17:49:18
+Last modified: 2026/02/04 15:29:30
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -86,14 +86,13 @@ class Triangle_heat(FiniteElement):
     # -----------------------------------------------------------
 
     def compute_diffusion_matrices(
-        self, x_nodes: np.ndarray, y_nodes: np.ndarray, material, params: dict
+        self, coords: np.ndarray, material, params: dict
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Compute element mass and stiffness matrices for diffusion.
 
         Args:
-            x_nodes: Nodal coordinates [x1, x2, x3]
-            y_nodes: Nodal coordinates [y1, y2, y3]
+            coords: Nodal coordinates [(x1, y1), (x2, y2), (x3, y3)]
             material: Diffusion2D material with 'alpha' attribute
             params: Element parameters
 
@@ -101,7 +100,7 @@ class Triangle_heat(FiniteElement):
             (M_e, K_e): Element mass and stiffness matrices
         """
 
-        B, A = self.B_matrix_triangle_heat(x_nodes)  # B: 2x3
+        B, A = self.B_matrix_triangle_heat(coords)  # B: 2x3
 
         if A <= 0:
             raise ValueError(f"Element {self.element_index}: invalid area A = {A}")
@@ -163,20 +162,20 @@ class Triangle_heat(FiniteElement):
         return M_e, K_e
 
     def compute_source_vector(
-        self, x_nodes: np.ndarray, params: dict, time: float = 0.0
+        self, coords: np.ndarray, params: dict, time: float = 0.0
     ) -> np.ndarray:
         """
         Compute element source vector from heat generation.
 
         Args:
-            x_nodes: Nodal coordinates [x1, x2]
+            coords: Nodal coordinates [(x1, y1), (x2, y2), (x3, y3)]
             params: Element parameters (contains 'source')
             time: Current time (for time-dependent sources)
 
         Returns:
             f_e: Element source vector [2]
         """
-        B, A = self.B_matrix_triangle_heat(x_nodes)  # B: 2x3
+        B, A = self.B_matrix_triangle_heat(coords)  # B: 2x3
 
         if A <= 0:
             raise ValueError(f"Element {self.element_index}: invalid area A = {A}")
@@ -193,12 +192,12 @@ class Triangle_heat(FiniteElement):
 
         return f_e
 
-    def B_matrix_triangle_heat(self, x_nodes):
+    def B_matrix_triangle_heat(self, coords: np.ndarray):
         """B-matrix and area computation for a 3-node CST element."""
 
-        x1, y1 = x_nodes[0]
-        x2, y2 = x_nodes[1]
-        x3, y3 = x_nodes[2]
+        x1, y1 = coords[0, 0], coords[0, 1]
+        x2, y2 = coords[1, 0], coords[1, 1]
+        x3, y3 = coords[2, 0], coords[2, 1]
 
         x13, x21, x32 = x1 - x3, x2 - x1, x3 - x2
         y12, y23, y31 = y1 - y2, y2 - y3, y3 - y1

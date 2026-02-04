@@ -22,7 +22,7 @@ Notes:
       and raises a ValueError if violated.
 
 Created: 2025/12/08 16:15:24
-Last modified: 2026/02/04 15:32:51
+Last modified: 2026/02/04 17:46:49
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -151,8 +151,8 @@ def main() -> np.ndarray:
     # PROCESSING: Solve transient diffusion problem
 
     # Time discretization parameters
-    increments = 500  # number of time steps
-    total_time = 60 * 5  # total physical time in seconds
+    increments = 200  # number of time steps
+    total_time = 60 * 2  # total physical time in seconds
 
     # STABILITY CHECK FOR EXPLICIT SCHEME (Fourier number)
     #

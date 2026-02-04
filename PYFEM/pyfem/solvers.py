@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2026/02/04 17:19:47
+Last modified: 2026/02/04 17:54:02
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -318,6 +318,7 @@ class DiffusionExplicitSolver:
         self.dof_space = model.dof_space
         self.element_properties = model.element_properties
         self.materials = model.materials
+        self.M_inv = None
 
         # Enforce that this solver is used only for heat-transfer problems
         if self.model.problem.physics is not Physics.HEAT_TRANSFER:
@@ -517,89 +518,6 @@ class DiffusionExplicitSolver:
 
         return is_stable
 
-    def check_stability_vecio(self, dt: float, verbose: bool = False) -> bool:
-        """
-        Check if the given time step satisfies stability condition.
-
-        Args:
-            dt: Proposed time step
-            verbose: Print stability information
-
-        Returns:
-            True if stable, False otherwise
-        """
-        for e in range(self.mesh.num_elements):
-            conn = self.mesh.element_connectivity[e]
-            coords = self.mesh.points[conn]
-            if coords.ndim == 1:
-                dt_crit = self.compute_critical_timestep()
-
-                is_stable = dt <= dt_crit
-                ratio = dt / dt_crit
-
-                if verbose:
-                    print("\n" + "=" * 70)
-                    print("STABILITY CHECK: Forward Euler Time Stepping")
-                    print("=" * 70)
-                    print(
-                        f"  Minimum element size:      {self._min_element_size:.3e} m"
-                    )
-                    print(
-                        f"  Maximum diffusivity:       {self._max_diffusivity:.3e} m²/s"
-                    )
-                    print(
-                        f"  Critical time step:        {dt_crit:.3e} s ({dt_crit / 3600:.2f} hours)"
-                    )
-                    print(
-                        f"  Requested time step:       {dt:.3e} s ({dt / 3600:.2f} hours)"
-                    )
-                    print(f"  Stability ratio (Δt/Δt_c): {ratio:.3f}")
-
-                    if is_stable:
-                        if ratio > 0.8:
-                            print("  Status: MARGINALLY STABLE (ratio > 0.8)")
-                            print(
-                                f"  Recommendation: Reduce Δt to {0.5 * dt_crit:.3e} s for safety"
-                            )
-                        else:
-                            print("  Status: ✓ STABLE")
-                    else:
-                        print("  Status: UNSTABLE - SOLUTION WILL DIVERGE!")
-                        print(f"  Required: Δt ≤ {dt_crit:.3e} s")
-                    print("=" * 70)
-            elif coords.ndim == 2:
-                dt_crit = self.compute_critical_timestep_2D()
-
-                is_stable = dt <= dt_crit
-                ratio = dt / dt_crit
-
-                if verbose:
-                    print("\n" + "=" * 70)
-                    print("STABILITY CHECK: Forward Euler Time Stepping")
-                    print("=" * 70)
-                    print(
-                        f"  Critical time step:        {dt_crit:.3e} s ({dt_crit / 3600:.2f} hours)"
-                    )
-                    print(
-                        f"  Requested time step:       {dt:.3e} s ({dt / 3600:.2f} hours)"
-                    )
-                    print(f"  Stability ratio (Δt/Δt_c): {ratio:.3f}")
-
-                    if is_stable:
-                        if ratio > 0.8:
-                            print("  Status: MARGINALLY STABLE (ratio > 0.8)")
-                            print(
-                                f"  Recommendation: Reduce Δt to {0.5 * dt_crit:.3e} s for safety"
-                            )
-                        else:
-                            print("  Status: ✓ STABLE")
-                    else:
-                        print("  Status: UNSTABLE - SOLUTION WILL DIVERGE!")
-                        print(f"  Required: Δt ≤ {dt_crit:.3e} s")
-                    print("=" * 70)
-
-        return is_stable
-
     def assemble_mass_and_stiffness(
         self, use_sparse: bool = True
     ) -> tuple[np.ndarray, np.ndarray | sparse.spmatrix]:
@@ -759,6 +677,17 @@ class DiffusionExplicitSolver:
         M_inv = np.zeros_like(self.M_lumped)
         nonzero = self.M_lumped > 1e-14
         M_inv[nonzero] = 1.0 / self.M_lumped[nonzero]
+
+        if self.M_inv is None:
+            # Create the blank vector
+            self.M_inv = np.zeros_like(self.M_lumped)
+
+            # Avoid division by zero (Dirichlet DOFs)
+            nonzero = self.M_lumped > 1e-14
+
+            # Inverse computation
+            self.M_inv[nonzero] = 1.0 / self.M_lumped[nonzero]
+            print("INFO: Mass matrix inverted and cached.")
 
         # Explicit update
         T_np1 = T_n + dt * (M_inv * r)

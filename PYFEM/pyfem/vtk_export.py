@@ -3,7 +3,7 @@
 VTK Writer for finite element results.
 
 Created: 2025/11/23 22:15:26
-Last modified: 2025/12/09 00:18:15
+Last modified: 2026/02/04 17:34:46
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -85,6 +85,7 @@ class VTKWriter:
             "bar3_1D": "line3",
             "bar_1D_heat": "line",
             "triangle": "triangle",
+            "triangle_heat": "triangle",
             "tetra": "tetra",
         }
 

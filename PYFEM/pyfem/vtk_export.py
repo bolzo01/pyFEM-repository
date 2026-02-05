@@ -3,7 +3,7 @@
 VTK Writer for finite element results.
 
 Created: 2025/11/23 22:15:26
-Last modified: 2026/02/04 17:34:46
+Last modified: 2026/02/05 18:08:55
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -194,4 +194,4 @@ class VTKWriter:
             binary=True,
         )
 
-        print(f"VTK file written: {filename}")
+        # print(f"VTK file written: {filename}")

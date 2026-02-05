@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2026/02/04 17:54:02
+Last modified: 2026/02/05 15:54:08
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -319,6 +319,8 @@ class DiffusionExplicitSolver:
         self.element_properties = model.element_properties
         self.materials = model.materials
         self.M_inv = None
+        self._sources_are_constant = None  # None = "Non ho ancora controllato"
+        self._force_vector_is_ready = False
 
         # Enforce that this solver is used only for heat-transfer problems
         if self.model.problem.physics is not Physics.HEAT_TRANSFER:
@@ -626,19 +628,34 @@ class DiffusionExplicitSolver:
         Args:
             time: Current simulation time (for time-dependent sources)
         """
+
+        # If the sources are constant and we have already assembled F, we can skip re-assembly
+        if self._sources_are_constant is True and self._force_vector_is_ready:
+            return
+
         from .elements.element_registry import create_element
 
         # Reset global force vector
         self.F[:] = 0.0
+
+        # Temporary flag to check if we encounter any time-dependent source term
+        found_time_dependent_param = False
 
         for e in range(self.mesh.num_elements):
             conn = self.mesh.element_connectivity[e]
             prop_label = self.mesh.element_property_labels[e]
             elem_prop = self.element_properties[prop_label]
 
+            # To control if the system has time-dependent sources
+            if self._sources_are_constant is None:
+                if elem_prop.params:
+                    for value in elem_prop.params.values():
+                        # If the value is a FUNCTION (callable), then it varies in time!
+                        if callable(value):
+                            found_time_dependent_param = True
+
             # Create element instance
             element = create_element(elem_prop, e)
-
             coords = self.mesh.points[conn]
 
             # Check if element has a source term implementation
@@ -654,6 +671,19 @@ class DiffusionExplicitSolver:
 
             for a_local, a_global in enumerate(edofs):
                 self.F[a_global] += f_e[a_local]
+
+        # Memorizing of the state of the sources (only after the first cicle)
+        if self._sources_are_constant is None:
+            if found_time_dependent_param:
+                print(
+                    "INFO: Time-dependent sources detected (functions). Optimization OFF."
+                )
+                self._sources_are_constant = False
+            else:
+                print("INFO: Static sources detected (numbers). Optimization ON.")
+                self._sources_are_constant = True
+
+        self._force_vector_is_ready = True
 
     def forward_euler_step(self, T_n: np.ndarray, dt: float, time: float) -> np.ndarray:
         """

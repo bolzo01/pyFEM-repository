@@ -3,7 +3,7 @@
 Module defining the BoundaryConditions class.
 
 Created: 2025/10/25 19:28:51
-Last modified: 2025/12/09 02:27:48
+Last modified: 2026/02/05 16:56:36
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -363,6 +363,7 @@ class BoundaryConditions:
         def get_type_from_dof(dof: int):
             return global_types[dof]
 
+        """
         # ---- DIRICHLET ----
         dirichlet = registry.get_dirichlet_values()
         print("\n Prescribed Displacements:")
@@ -384,5 +385,44 @@ class BoundaryConditions:
                 print(f"   - Node {node:4d}, {doftype:6s} = {value:g}")
         else:
             print("   None")
+        """
+
+        def print_grouped_bcs(bc_dict, label):
+            print(f"\n {label}:")
+            if not bc_dict:
+                print("   None")
+                return
+
+            # Dictionary to group by: key=(value, type), value=[list of nodes]
+            groups = {}
+
+            for dof, value in bc_dict.items():
+                node = get_node_from_dof(dof)
+                dof_type = get_type_from_dof(dof).name
+
+                key = (float(f"{value:.6f}"), dof_type)
+
+                if key not in groups:
+                    groups[key] = []
+                groups[key].append(node)
+
+            # Print the ordered groups
+            for (val, dtype), nodes in sorted(groups.items()):
+                node_count = len(nodes)
+                # It shows only first 5 nodes as instances
+                example_nodes = ", ".join(str(n) for n in sorted(nodes)[:5])
+                suffix = "..." if node_count > 5 else ""
+
+                print(
+                    f"   - Type: {dtype:<12} | Value: {val:<10g} | Applied to {node_count:5d} nodes ({example_nodes}{suffix})"
+                )
+
+        # ---- DIRICHLET PRINT ----
+        print_grouped_bcs(
+            registry.get_dirichlet_values(), "Prescribed Values (Dirichlet)"
+        )
+
+        # ---- NEUMANN PRINT ----
+        print_grouped_bcs(registry.get_neumann_forces(), "Applied Forces (Neumann)")
 
         print("========================================================\n")

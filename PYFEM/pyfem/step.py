@@ -3,7 +3,7 @@
 Module defining the Step class for analysis execution (similar to Abaqus step concept)
 
 Created: 2025/11/16 10:24:33
-Last modified: 2025/12/09 02:04:44
+Last modified: 2026/02/05 18:02:36
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -555,8 +555,8 @@ class Step:
         for i in range(1, n_steps + 1):
             time = t0 + i * dt
 
-            if self.verbose:
-                print(f"[{self.name}] Time step {i}/{n_steps}, t = {time:.6e}")
+            # if self.verbose:
+            #    print(f"[{self.name}] Time step {i}/{n_steps}, t = {time:.6e}")
 
             # Forward Euler step
             T_np1 = solver.forward_euler_step(T_n, dt, time)

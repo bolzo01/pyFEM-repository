@@ -22,7 +22,7 @@ Notes:
       and raises a ValueError if violated.
 
 Created: 2025/12/08 16:15:24
-Last modified: 2026/02/04 17:46:49
+Last modified: 2026/02/05 18:38:39
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -51,15 +51,15 @@ def main() -> np.ndarray:
     materials = pyfem.make_materials(
         [
             (
-                "steel",
-                pyfem.Diffusion2D(
-                    rho=8000.0, c=500.0, k=15.0, alpha=(15.0 / (8000.0 * 500.0))
-                ),
-            ),
-            (
                 "water",
                 pyfem.Diffusion2D(
                     rho=1000.0, c=4182.0, k=0.6, alpha=(0.6 / (1000.0 * 4184.0))
+                ),
+            ),
+            (
+                "copper",
+                pyfem.Diffusion2D(
+                    rho=8940.0, c=385.0, k=340.0, alpha=(340.0 / (8940.0 * 385.0))
                 ),
             ),
         ]
@@ -73,7 +73,7 @@ def main() -> np.ndarray:
                 pyfem.ElementProperty(
                     kind="triangle_heat",
                     params={"source": 0.0, "t": 1.0},  # °C/s , m
-                    material="steel",
+                    material="copper",
                 ),
             ),
             (
@@ -119,16 +119,16 @@ def main() -> np.ndarray:
 
         # 2. Distance from tube centers
         # 2nd tube centered at (10.0, 3.33) with radius 2.0
-        dist_tube_1 = np.sqrt((x_node - 10.0) ** 2 + (y_node - 3.33) ** 2)
+        dist_tube_2 = np.sqrt((x_node - 10.0) ** 2 + (y_node - 3.33) ** 2)
         # 4th tube centered at (15.0, 6.66) with radius 2.0
         dist_tube_4 = np.sqrt((x_node - 15.0) ** 2 + (y_node - 6.66) ** 2)
         # 6th tube centered at (5.0, 6.66) with radius 2.0
-        dist_tube_6 = np.sqrt((x_node - 5.0) ** 2 + (y_node - 3.33) ** 2)
+        dist_tube_6 = np.sqrt((x_node - 5.0) ** 2 + (y_node - 6.66) ** 2)
 
         # 3. Set initial temperature based on distance from tube centers
-        tube_radius = 2.0
+        tube_radius = 1.0
         if (
-            (dist_tube_1 <= tube_radius)
+            (dist_tube_2 <= tube_radius)
             or (dist_tube_4 <= tube_radius)
             or (dist_tube_6 <= tube_radius)
         ):
@@ -151,14 +151,14 @@ def main() -> np.ndarray:
     # PROCESSING: Solve transient diffusion problem
 
     # Time discretization parameters
-    increments = 200  # number of time steps
-    total_time = 60 * 2  # total physical time in seconds
+    total_time = 60.0 * 60.0 * 10.0  # total physical time in seconds
 
     # STABILITY CHECK FOR EXPLICIT SCHEME (Fourier number)
     #
     solver = DiffusionExplicitSolver(model)
-    dt = total_time / increments
-    is_stable = solver.check_stability(dt, verbose=True)
+    dt_crit = solver.compute_critical_timestep_2D()
+    increments = int(total_time / dt_crit)
+    is_stable = solver.check_stability(dt_crit, verbose=True)
     # ------------------------------------------------------------------
 
     # Initialize model state
@@ -172,9 +172,9 @@ def main() -> np.ndarray:
         total_time=total_time,
         verbose=True,
         output_fields=["temperature"],
-        output_frequency=20,  # dump every 20th time step
-        output_save_to="vtk_heat_results",  # folder
-        output_file="heat_step_steel.vtu",  # base name
+        output_frequency=int(increments / 20.0),  # dump every nth time step
+        output_save_to="vtk_heat_results_copper",  # folder
+        output_file="heat_step_copper.vtu",  # base name
     )
 
     # use the warp by scalar filter in paraview to see the temperature profile
@@ -182,13 +182,45 @@ def main() -> np.ndarray:
     # Execute step (returns updated state)
     model_state = step.execute(model, model_state)
 
-    # POSTPROCESSING: here we simply print final temperature field
+    # POSTPROCESSING: statistics filtered only for the matrix region
 
     T_final = model_state.current_solution.temperature
 
-    print("\nFinal nodal temperatures:")
-    for i, (x, T) in enumerate(zip(points, T_final)):
-        print(f"  Node {i:2d} at x = {x:6.3f}  ->  T = {T:10.4f}")
+    # Let's find the indices of the elements that are labeled as "matrix"
+    #    mesh.element_property_labels is a list that says "matrix", "tube_hot", ecc. for each element
+    matrix_element_indices = [
+        i for i, label in enumerate(mesh.element_property_labels) if label == "matrix"
+    ]
+
+    # Let's find the unique nodes that belong to these "matrix" elements
+    #    set counteracts duplications (each node is shared by multiple triangles)
+    matrix_nodes = set()
+    for elem_idx in matrix_element_indices:
+        nodes = mesh.element_connectivity[elem_idx]
+        matrix_nodes.update(nodes)
+
+    # List conversion for indexing
+    matrix_nodes_list = list(matrix_nodes)
+
+    # Let's extract the T values only for these nodes
+    T_matrix = T_final[matrix_nodes_list]
+
+    # Let's print the results
+    print("\n" + "=" * 40)
+    print(f"RESULTS FOR REGION: MATRIX ({element_properties['matrix'].material})")
+    print("=" * 40)
+    print(f"  Nodes in matrix:            {len(T_matrix)} (out of {len(T_final)})")
+    print(f"  Min Temperature:  {np.min(T_matrix):.4f} °C")
+    print(f"  Max Temperature:  {np.max(T_matrix):.4f} °C")
+    print(f"  Avg Temperature:  {np.mean(T_matrix):.4f} °C")
+    print(f"  Total time (min): {total_time / 60} min")
+    print(
+        "  Note: Tubes and water regions are excluded from these stats because the T is constant."
+    )
+    print("-" * 40)
+    print("  Full field results saved to: 'vtk_heat_results/*.vtu'")
+    print("  Open with Paraview to visualize.")
+    print("=" * 40 + "\n")
 
     return T_final
 

@@ -6,7 +6,7 @@ This module implements the FiniteElement abstract base class,
 encapsulating the common operations needed in finite element analysis.
 
 Created: 2025/11/16 21:18:34
-Last modified: 2025/11/23 18:44:04
+Last modified: 2026/02/09 13:54:31
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 

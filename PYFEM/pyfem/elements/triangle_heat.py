@@ -12,7 +12,7 @@ where:
     s = heat source per unit volume [K/s or °C/s]
 
 Created: 2025/12/08 09:01:27
-Last modified: 2026/02/04 15:29:30
+Last modified: 2026/02/09 14:04:19
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -143,7 +143,7 @@ class Triangle_heat(FiniteElement):
             )
 
         # Material property: thermal conductivity
-        k = getattr(material, "c", None)
+        k = getattr(material, "k", None)
         if k is None:
             raise ValueError(
                 f"Element {self.element_index}: material must have 'k' "

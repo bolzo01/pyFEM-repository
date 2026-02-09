@@ -28,7 +28,7 @@ The registry is built by calling:
     ])
 
 Created: 2025/10/19 00:16:39
-Last modified: 2026/01/29 16:41:18
+Last modified: 2026/02/09 13:44:39
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -144,7 +144,7 @@ REQUIRED_PARAMS: dict[str, set[str]] = {
     "bar3_1D": {"A"},
     "bar_2D": {"A"},
     "triangle": {"t"},
-    "triangle_heat": {"t"},
+    "triangle_heat": {"source", "t"},
     "tetra": set(),
     # "beam_1D": {"A", "I"},
 }

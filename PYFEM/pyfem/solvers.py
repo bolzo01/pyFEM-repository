@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2026/02/05 15:54:08
+Last modified: 2026/02/08 18:00:47
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -755,3 +755,42 @@ class DiffusionExplicitSolver:
         if self.model.has_initial_temperature():
             return self.model.get_initial_temperature()
         return np.zeros(ndofs, dtype=float)
+
+    def compute_heat_flux(
+        self, T: np.ndarray
+    ) -> tuple[np.ndarray, float, float, float]:
+        """
+        Computes the reaction forces (Heat Flux in Watts) at the boundaries.
+
+        Physics:
+            In steady state: K * T = F_source + F_reaction
+            Therefore:       F_reaction = K * T - F_source
+
+        Args:
+            T (np.ndarray): The temperature vector (solution).
+            verbose (bool): If True, prints a summary to the terminal.
+
+        Returns:
+                - 'reaction_vector': The nodal reaction forces [Watts].
+                - 'power_in': Total power supplied TO the system (e.g., hot tubes) [Watts].
+                - 'power_out': Total power removed FROM the system (e.g., cold walls) [Watts].
+                - 'balance': Net balance (should be ~0 at steady state) [Watts].
+        """
+
+        # 3. Calculate Reaction Forces: F_reaction = K*T - F_internal
+        #    K*T represents the internal resistance forces
+        #    self.F represents the internal heat generation (F_source) (source terms)
+        F_internal = self.K @ T
+        F_reaction = F_internal - self.F
+
+        # 4. Analyze Fluxes
+        #    Positive values (> 0): Heat entering the domain (Hot source)
+        #    Negative values (< 0): Heat leaving the domain (Cold sink)
+        tol = 1e-9
+        power_in = np.sum(F_reaction[F_reaction > tol])
+        power_out = np.sum(F_reaction[F_reaction < -tol])
+
+        # Net balance (Energy conservation check)
+        balance = power_in + power_out
+
+        return F_reaction, power_in, power_out, balance

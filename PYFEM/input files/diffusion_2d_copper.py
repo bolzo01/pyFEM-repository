@@ -22,7 +22,7 @@ Notes:
       and raises a ValueError if violated.
 
 Created: 2025/12/08 16:15:24
-Last modified: 2026/02/05 18:38:39
+Last modified: 2026/02/09 15:30:47
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -53,7 +53,7 @@ def main() -> np.ndarray:
             (
                 "water",
                 pyfem.Diffusion2D(
-                    rho=1000.0, c=4182.0, k=0.6, alpha=(0.6 / (1000.0 * 4184.0))
+                    rho=1000.0, c=4182.0, k=0.6, alpha=(1000.0 / (0.6 * 4184.0))
                 ),
             ),
             (
@@ -74,6 +74,7 @@ def main() -> np.ndarray:
                     kind="triangle_heat",
                     params={"source": 0.0, "t": 1.0},  # °C/s , m
                     material="copper",
+                    meta={"integration": 1},
                 ),
             ),
             (
@@ -82,6 +83,7 @@ def main() -> np.ndarray:
                     kind="triangle_heat",
                     params={"source": 0.0, "t": 1.0},  # °C/s , m
                     material="water",
+                    meta={"integration": 1},
                 ),
             ),
             (
@@ -90,6 +92,7 @@ def main() -> np.ndarray:
                     kind="triangle_heat",
                     params={"source": 0.0, "t": 1.0},  # °C/s , m
                     material="water",
+                    meta={"integration": 1},
                 ),
             ),
         ]
@@ -106,10 +109,11 @@ def main() -> np.ndarray:
     print(model)
 
     # Initial temperature T0(x)
-
     ndofs = model.dof_space.total_dofs
     points = mesh.points
     T0 = np.zeros(ndofs, dtype=float)
+
+    s = 0.01  # scale factor (from m to cm)
 
     for node, coords in enumerate(points):
         dof = model.dof_space.get_global_dof(node, pyfem.DOFType.TEMPERATURE)
@@ -118,15 +122,15 @@ def main() -> np.ndarray:
         x_node, y_node = coords[0], coords[1]
 
         # 2. Distance from tube centers
-        # 2nd tube centered at (10.0, 3.33) with radius 2.0
-        dist_tube_2 = np.sqrt((x_node - 10.0) ** 2 + (y_node - 3.33) ** 2)
-        # 4th tube centered at (15.0, 6.66) with radius 2.0
-        dist_tube_4 = np.sqrt((x_node - 15.0) ** 2 + (y_node - 6.66) ** 2)
-        # 6th tube centered at (5.0, 6.66) with radius 2.0
-        dist_tube_6 = np.sqrt((x_node - 5.0) ** 2 + (y_node - 6.66) ** 2)
+        # 2nd tube centered at (10.0, 3.33) with radius 1.0 (cm)
+        dist_tube_2 = np.sqrt((x_node - 10.0 * s) ** 2 + (y_node - 3.33 * s) ** 2)
+        # 4th tube centered at (15.0, 6.66) with radius 1.0 (cm)
+        dist_tube_4 = np.sqrt((x_node - 15.0 * s) ** 2 + (y_node - 6.66 * s) ** 2)
+        # 6th tube centered at (5.0, 6.66) with radius 1.0 (cm)
+        dist_tube_6 = np.sqrt((x_node - 5.0 * s) ** 2 + (y_node - 6.66 * s) ** 2)
 
         # 3. Set initial temperature based on distance from tube centers
-        tube_radius = 1.0
+        tube_radius = 1.0 * s
         if (
             (dist_tube_2 <= tube_radius)
             or (dist_tube_4 <= tube_radius)
@@ -151,14 +155,15 @@ def main() -> np.ndarray:
     # PROCESSING: Solve transient diffusion problem
 
     # Time discretization parameters
-    total_time = 60.0 * 60.0 * 10.0  # total physical time in seconds
+    total_time = 10.0  # total physical time in seconds
 
     # STABILITY CHECK FOR EXPLICIT SCHEME (Fourier number)
     #
     solver = DiffusionExplicitSolver(model)
     dt_crit = solver.compute_critical_timestep_2D()
-    increments = int(total_time / dt_crit)
-    is_stable = solver.check_stability(dt_crit, verbose=True)
+    dt = dt_crit * 0.75  # use 75% of critical time step for stability
+    increments = int((total_time / dt))
+    is_stable = solver.check_stability(dt, verbose=True)
     # ------------------------------------------------------------------
 
     # Initialize model state
@@ -205,19 +210,31 @@ def main() -> np.ndarray:
     # Let's extract the T values only for these nodes
     T_matrix = T_final[matrix_nodes_list]
 
+    # Let's compute the heat fluxes at the end of the simulation
+    F_reaction, power_in, power_out, balance = solver.compute_heat_flux(T_final)
+
     # Let's print the results
     print("\n" + "=" * 40)
     print(f"RESULTS FOR REGION: MATRIX ({element_properties['matrix'].material})")
     print("=" * 40)
-    print(f"  Nodes in matrix:            {len(T_matrix)} (out of {len(T_final)})")
-    print(f"  Min Temperature:  {np.min(T_matrix):.4f} °C")
-    print(f"  Max Temperature:  {np.max(T_matrix):.4f} °C")
-    print(f"  Avg Temperature:  {np.mean(T_matrix):.4f} °C")
-    print(f"  Total time (min): {total_time / 60} min")
+    print(f"  Nodes in matrix:     {len(T_matrix)} (out of {len(T_final)})")
+    print(f"  Min Temperature:     {np.min(T_matrix):.4f} °C")
+    print(f"  Max Temperature:     {np.max(T_matrix):.4f} °C")
+    print(f"  Avg Temperature:     {np.mean(T_matrix):.4f} °C")
+    print(f"  Total time (min):    {total_time} sec")
+    print(f"  Time between dumps:  {total_time / 20} sec")
     print(
         "  Note: Tubes and water regions are excluded from these stats because the T is constant."
     )
     print("-" * 40)
+    print("\n" + "=" * 40)
+    print(f" HEAT FLUX ANALYSIS (after {(total_time / 60.0)} min)")
+    print("=" * 40)
+    print(f"  Total Power INPUT  (Hot Source): {power_in:10.4f} W")
+    print(f"  Total Power OUTPUT (Cold Sink):  {power_out:10.4f} W")
+    print("-" * 40)
+    print(f"  Global Balance (Net Flux):       {balance:10.4e} W")
+    print("=" * 40 + "\n")
     print("  Full field results saved to: 'vtk_heat_results/*.vtu'")
     print("  Open with Paraview to visualize.")
     print("=" * 40 + "\n")

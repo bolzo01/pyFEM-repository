@@ -186,3 +186,7 @@ Physical Point("bottom left corner") = {1}; //this is the label given to Point(1
 Physical Curve("cold_surface") = {5,6,7,8,13,14,15,16,21,22,23,24};
 Physical Curve("hot_surface") = {9,10,11,12,17,18,19,20,25,26,27,28};
 
+//+
+SetFactory("Built-in");
+//+
+SetFactory("OpenCASCADE");

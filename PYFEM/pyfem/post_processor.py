@@ -3,7 +3,7 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2025/12/12 21:25:13
+Last modified: 2026/02/13 17:29:59
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -12,7 +12,6 @@ import os
 import matplotlib.axes
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.sparse.linalg as spla
 from matplotlib.lines import Line2D
 
 from .element_properties import ElementProperties, param
@@ -35,7 +34,6 @@ class PostProcessor:
         alpha: float,
         alpha_counter: int,
         alpha_values: np.ndarray,
-        cond_numbers: np.ndarray,
         E: float,
         A: float,
         P: float,
@@ -49,7 +47,6 @@ class PostProcessor:
         self.alpha = alpha
         self.alpha_counter = alpha_counter
         self.alpha_values = alpha_values
-        self.cond_numbers = cond_numbers
         self.E = E
         self.A = A
         self.P = P
@@ -105,54 +102,6 @@ class PostProcessor:
                 )
 
         return epsilon_h
-
-    def conditioning_numbers_of_K(self, i: int) -> np.ndarray:
-        """
-        Computes the conditioning number of the matrix K.
-        It's a matrix and every row is related to a different value of alpha.
-
-        Returns:
-            cond_numbers.
-        """
-
-        alpha_counter = self.alpha_counter
-        K = self.global_stiffness_matrix
-        cond_numbers = self.cond_numbers
-
-        # 1. Calcola l'autovalore massimo (k=1, Largest Magnitude)
-        # return_eigenvectors=False risparmia memoria
-        max_eig = spla.norm(K, np.inf)
-
-        # 2. Calcola l'autovalore minimo (k=1, Smallest Magnitude)
-        # sigma=0 usa lo shift-invert mode che è molto più veloce per trovare valori vicino allo 0
-
-        try:
-            min_eig = spla.eigsh(
-                K,
-                k=1,
-                sigma=0,  # Shift-Invert (cerca l'inverso, velocissimo per il minimo)
-                which="LM",  # Largest Magnitude dell'inverso
-                return_eigenvectors=False,
-                tol=1e-2,  # FONDAMENTALE: Ci accontentiamo dell'1% di errore
-                ncv=10,  # Aumentiamo i vettori di Lanczos per convergere in meno iterazioni
-            )[0]
-
-            # Se min_eig è troppo vicino a zero, evita divisioni assurde
-            if abs(min_eig) < 1e-15:
-                c = np.inf
-            else:
-                c = abs(max_eig / min_eig)
-
-        except (RuntimeError, ValueError):
-            # Se il calcolo esplode (matrice singolare), il condizionamento è infinito
-            c = np.inf
-
-        # 3. Salva il risultato nella matrice e restituisci la matrice
-        cond_numbers[alpha_counter, i] = c
-
-        print(f"Condition Number (stimato): {cond_numbers}")
-
-        return cond_numbers
 
     def compute_strain_energy_analytical(
         self,
@@ -213,6 +162,48 @@ class PostProcessor:
                 print(f"\n- Relative error in the energy norm: e = {e}")
 
         return e
+
+    def plot_u_uh(
+        self,
+        num_elements: int,
+        L: float,
+    ) -> None:
+        """
+        Print of the analitical solution and numerical one vs nodes position,
+        related to displacements.
+
+        Returns:
+            None.
+        """
+
+        u_h = self.nodal_displacements.flatten()
+        nodes_position = np.linspace(0, L, num_elements + 1)
+        u = -(self.P / (self.E * self.A * self.alpha)) * np.exp(
+            -self.alpha * nodes_position
+        )
+
+        plt.plot(
+            nodes_position,
+            u,
+            marker="^",
+            linestyle="-",
+            color="r",
+            label="Analytical Solution u",
+        )
+        plt.plot(
+            nodes_position,
+            u_h,
+            marker="o",
+            linestyle="-",
+            label=f"FEM Solution u_h (number of elements = {num_elements})",
+        )
+
+        plt.xlabel("Position x [m]")
+        plt.ylabel("Displacement u(x) [m]")
+        plt.title(f"Comparison: Analytical vs FEM (α = {self.alpha})")
+        plt.legend()
+        plt.grid(True, which="both", linestyle="--", alpha=0.7)
+        plt.show()
 
     def plot_solution(
         self,

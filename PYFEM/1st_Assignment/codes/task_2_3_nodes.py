@@ -13,11 +13,15 @@ def main() -> np.ndarray:
     # Problem parameters
     bar_length = 10.0
     num_nodes = 3
-    num_elements = 1
+    number_elements = np.array([1.0])
     P = -1.0
     E = 1.0
     A = 1.0
-    alpha = 1.0
+    # Parameters required by the postprocessor
+    alpha_values, alpha_counter = np.array([1.0]), 0
+    alpha = alpha_values[alpha_counter]
+    epsilon_h = np.zeros((len(alpha_values), len(num_elements)))
+    i = np.where(number_elements == num_elements)[0][0]
 
     # Nodal coordinates
     points = np.array(
@@ -100,20 +104,29 @@ def main() -> np.ndarray:
     solver.apply_boundary_conditions()
 
     # Solve for nodal displacements
-    nodal_displacements, original_global_stiffness_matrix = solver.solve()
+    solver.solve()
 
     # POSTPROCESSING: Compute derived quantities
+
+    number_elements = np.array([1.0])
 
     # Create postprocessor
     postprocessor = pyfem.PostProcessor(
         model.mesh,
         model.element_properties,
-        original_global_stiffness_matrix,
-        nodal_displacements,
+        solver.global_stiffness_matrix,
+        solver.nodal_displacements,
+        number_elements,
+        alpha,
+        alpha_counter,
+        alpha_values,
+        E,
+        A,
+        P,
     )
 
     # Compute strain energy
-    postprocessor.compute_strain_energy_global()
+    epsilon_h = postprocessor.compute_strain_energy_global(i, epsilon_h)
 
     return nodal_displacements
 

@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2025/12/10 15:44:37
+Last modified: 2026/02/12 12:58:31
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -117,7 +117,7 @@ class LinearStaticSolver:
         self.state = SolverState.BOUNDARY_APPLIED
         return None
 
-    def solve(self) -> None:
+    def solve(self) -> np.ndarray:
         """Solves the linear system KU=F using static condensation."""
 
         self._ensure_state(SolverState.BOUNDARY_APPLIED)
@@ -174,7 +174,7 @@ class LinearStaticSolver:
 
         self.state = SolverState.SOLVED
 
-        return None
+        return self.nodal_displacements
 
     def _compute_statistics(self, K, free_dofs, prescribed_dofs) -> None:
         """Computes solver statistics."""

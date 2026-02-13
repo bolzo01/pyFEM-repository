@@ -1,71 +1,69 @@
 #!/usr/bin/env python
 
 import numpy as np
-import scipy.sparse.linalg as spla
 
 import pyfem
 
 
-def connectivity_3nodes_per_element(Ne: int) -> list[list[int]]:
+def connectivity_2nodes_per_element(Ne: int) -> list:
     """
-    Generates the connectivity matrix for 1D quadratic elements (3 nodes).
+    Genera la connettività per una mesh 1D uniforme con Ne elementi a due nodi.
 
-    Parameters:
-    Ne (int): Number of finite elements in the mesh.
+    Args:
+        Ne: Numero di elementi.
 
     Returns:
-    element_connectivity (list[list[int]]): A matrix of size (n_elements x 3) containing integer node indices.
+        Una lista di liste che definisce la connettività degli elementi.
     """
-    # 1. Initialize the matrix
-    element_connectivity = []
 
-    # 2. Fill the matrix
-    for element in range(Ne):
-        start_node = 2 * element
-        # Crea una lista per il singolo elemento [n1, n2, n3]
-        element_nodes = [start_node, start_node + 1, start_node + 2]
+    # 1. Crea un array di indici da 0 a Ne (i nodi iniziali)
+    nodi_iniziali = np.arange(Ne)  # [0, 1, 2, ..., Ne-1]
 
-        # Aggiungila alla lista principale
-        element_connectivity.append(element_nodes)
+    # 2. Crea un array per i nodi finali (da 1 a Ne)
+    nodi_finali = np.arange(1, Ne + 1)  # [1, 2, 3, ..., Ne]
+
+    # 3. Combina i due array in una lista di coppie (connettività)
+    #    numpy.column_stack crea una matrice a due colonne,
+    #    poi la convertiamo in una lista di liste.
+    element_connectivity = np.column_stack((nodi_iniziali, nodi_finali)).tolist()
 
     return element_connectivity
 
 
-def main(use_sparse: bool = True) -> None:
+def main(use_sparse: bool = False) -> None:
     # PREPROCESSING
 
     # 1. Geometry and discretization
 
     # Problem parameters
     L = 10.0
-    number_elements = np.zeros(15)
-    for n in range(0, 15):
-        number_elements[n] = 2**n
+    number_elements = np.array([4.0, 8.0, 16.0, 32.0, 64.0])
     h = L / number_elements
     P = 1.0
     E = 1.0
     A = 1.0
-    alpha_values = np.array([0.5, 1.0, 2.0, 4.0])
+    alpha_values = np.array([1.0])
 
     # Initialization of the vectors before the cicles
     epsilon = np.zeros((len(alpha_values), len(number_elements)))
     epsilon_h = np.zeros((len(alpha_values), len(number_elements)))
     e = np.zeros((len(alpha_values), len(number_elements)))
-    cond_numbers = np.zeros((len(alpha_values), len(number_elements)))
 
     for alpha in alpha_values:
         alpha_counter = np.where(alpha_values == alpha)[0][0]
+
         # 2. Element properties
 
         # Define element properties registry
         element_properties = pyfem.make_element_properties(
             [
-                ("bar", ("bar3_1D", {"E": E, "A": A, "k": alpha**2 * E * A})),
+                ("bar", ("bar_1D", {"E": E, "A": A, "k": alpha**2 * E * A})),
             ]
         )
 
         for Ne in number_elements:
             num_elements = int(Ne)
+
             # Found the position in number_elements of num_elements
             i = np.where(number_elements == num_elements)[0][0]
 
@@ -73,11 +71,11 @@ def main(use_sparse: bool = True) -> None:
             element_property_labels = ["bar"] * num_elements
 
             # Nodes and points calculation
-            num_nodes = int((2.0 * Ne) + 1)
+            num_nodes = int(Ne + 1)
             points = np.linspace(0.0, 10.0, num_nodes)
 
             # Connectivity generation
-            element_connectivity = connectivity_3nodes_per_element(int(Ne))
+            element_connectivity = connectivity_2nodes_per_element(int(Ne))
 
             # 3. Mesh
 
@@ -151,11 +149,13 @@ def main(use_sparse: bool = True) -> None:
                 alpha,
                 alpha_counter,
                 alpha_values,
-                cond_numbers,
                 E,
                 A,
                 P,
             )
+
+            # Plot of the displacements solution
+            postprocessor.plot_u_uh(num_elements, L)
 
             # Compute strain energy using the global solution (U = 0.5 * u^T * K * u)
             epsilon_h = postprocessor.compute_strain_energy_global(i, epsilon_h)
@@ -166,64 +166,11 @@ def main(use_sparse: bool = True) -> None:
             # Computes the relative error in the energy norm
             e = postprocessor.compute_relative_error_in_energy(i, epsilon, epsilon_h, e)
 
-            # Compute the conditioning number of K
-            cond_numbers = conditioning_numbers_of_K(i)
-
     # Plots the solution of the energy
-    postprocessor.plot_solution(
-        epsilon,
-        epsilon_h,
-    )
+    postprocessor.plot_solution(epsilon, epsilon_h)
     # Plots the relative error in the energy
     postprocessor.plot_e(e, h)
-    # Plots the relative error in the energy
-    postprocessor.plot_convergence_rate(e, h, cond_numbers)
 
 
 if __name__ == "__main__":
     main(use_sparse=False)
-
-
-def conditioning_numbers_of_K(alpha_counter, cond_numbers, K, i: int) -> np.ndarray:
-    """
-    Computes the conditioning number of the matrix K.
-    It's a matrix and every row is related to a different value of alpha.
-
-    Returns:
-        cond_numbers.
-    """
-
-    # 1. Calcola l'autovalore massimo (k=1, Largest Magnitude)
-    # return_eigenvectors=False risparmia memoria
-    max_eig = spla.norm(K, np.inf)
-
-    # 2. Calcola l'autovalore minimo (k=1, Smallest Magnitude)
-    # sigma=0 usa lo shift-invert mode che è molto più veloce per trovare valori vicino allo 0
-
-    try:
-        min_eig = spla.eigsh(
-            K,
-            k=1,
-            sigma=0,  # Shift-Invert (cerca l'inverso, velocissimo per il minimo)
-            which="LM",  # Largest Magnitude dell'inverso
-            return_eigenvectors=False,
-            tol=1e-2,  # FONDAMENTALE: Ci accontentiamo dell'1% di errore
-            ncv=10,  # Aumentiamo i vettori di Lanczos per convergere in meno iterazioni
-        )[0]
-
-        # Se min_eig è troppo vicino a zero, evita divisioni assurde
-        if abs(min_eig) < 1e-15:
-            c = np.inf
-        else:
-            c = abs(max_eig / min_eig)
-
-    except (RuntimeError, ValueError):
-        # Se il calcolo esplode (matrice singolare), il condizionamento è infinito
-        c = np.inf
-
-    # 3. Salva il risultato nella matrice e restituisci la matrice
-    cond_numbers[alpha_counter, i] = c
-
-    print(f"Condition Number (stimato): {cond_numbers}")
-
-    return cond_numbers

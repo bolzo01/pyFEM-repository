@@ -6,31 +6,6 @@ import scipy.sparse.linalg as spla
 import pyfem
 
 
-def connectivity_3nodes_per_element(Ne: int) -> list[list[int]]:
-    """
-    Generates the connectivity matrix for 1D quadratic elements (3 nodes).
-
-    Parameters:
-    Ne (int): Number of finite elements in the mesh.
-
-    Returns:
-    element_connectivity (list[list[int]]): A matrix of size (n_elements x 3) containing integer node indices.
-    """
-    # 1. Initialize the matrix
-    element_connectivity = []
-
-    # 2. Fill the matrix
-    for element in range(Ne):
-        start_node = 2 * element
-        # Crea una lista per il singolo elemento [n1, n2, n3]
-        element_nodes = [start_node, start_node + 1, start_node + 2]
-
-        # Aggiungila alla lista principale
-        element_connectivity.append(element_nodes)
-
-    return element_connectivity
-
-
 def main(use_sparse: bool = True) -> None:
     # PREPROCESSING
 
@@ -38,20 +13,22 @@ def main(use_sparse: bool = True) -> None:
 
     # Problem parameters
     L = 10.0
-    number_elements = np.zeros(15)
-    for n in range(0, 15):
-        number_elements[n] = 2**n
+    number_elements = np.array([1.0])
     h = L / number_elements
     P = 1.0
     E = 1.0
     A = 1.0
-    alpha_values = np.array([0.5, 1.0, 2.0, 4.0])
+    alpha_values = np.array([1.0])
+
+    # Connectivity generation
+    element_connectivity = element_connectivity = [
+        [0, 1, 2],
+    ]
 
     # Initialization of the vectors before the cicles
-    epsilon = np.zeros((len(alpha_values), len(number_elements)))
     epsilon_h = np.zeros((len(alpha_values), len(number_elements)))
+    epsilon = np.zeros((len(alpha_values), len(number_elements)))
     e = np.zeros((len(alpha_values), len(number_elements)))
-    cond_numbers = np.zeros((len(alpha_values), len(number_elements)))
 
     for alpha in alpha_values:
         alpha_counter = np.where(alpha_values == alpha)[0][0]
@@ -75,9 +52,6 @@ def main(use_sparse: bool = True) -> None:
             # Nodes and points calculation
             num_nodes = int((2.0 * Ne) + 1)
             points = np.linspace(0.0, 10.0, num_nodes)
-
-            # Connectivity generation
-            element_connectivity = connectivity_3nodes_per_element(int(Ne))
 
             # 3. Mesh
 
@@ -151,7 +125,6 @@ def main(use_sparse: bool = True) -> None:
                 alpha,
                 alpha_counter,
                 alpha_values,
-                cond_numbers,
                 E,
                 A,
                 P,
@@ -165,19 +138,6 @@ def main(use_sparse: bool = True) -> None:
 
             # Computes the relative error in the energy norm
             e = postprocessor.compute_relative_error_in_energy(i, epsilon, epsilon_h, e)
-
-            # Compute the conditioning number of K
-            cond_numbers = conditioning_numbers_of_K(i)
-
-    # Plots the solution of the energy
-    postprocessor.plot_solution(
-        epsilon,
-        epsilon_h,
-    )
-    # Plots the relative error in the energy
-    postprocessor.plot_e(e, h)
-    # Plots the relative error in the energy
-    postprocessor.plot_convergence_rate(e, h, cond_numbers)
 
 
 if __name__ == "__main__":

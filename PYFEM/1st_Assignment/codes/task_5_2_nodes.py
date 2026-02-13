@@ -152,7 +152,6 @@ def main(use_sparse: bool = False) -> None:
                 alpha,
                 alpha_counter,
                 alpha_values,
-                cond_numbers,
                 E,
                 A,
                 P,

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
+import scipy.sparse.linalg as spla
 
 import pyfem
 
@@ -30,6 +31,53 @@ def connectivity_3nodes_per_element(Ne: int) -> list[list[int]]:
     return element_connectivity
 
 
+def conditioning_numbers_of_K(
+    alpha_counter: int, cond_numbers: np.ndarray, K: np.ndarray, i: int
+) -> np.ndarray:
+    """
+    Computes the conditioning number of the matrix K.
+    It's a matrix and every row is related to a different value of alpha.
+
+    Returns:
+        cond_numbers.
+    """
+
+    # 1. Calcola l'autovalore massimo (k=1, Largest Magnitude)
+    # return_eigenvectors=False risparmia memoria
+    max_eig = spla.norm(K, np.inf)
+
+    # 2. Calcola l'autovalore minimo (k=1, Smallest Magnitude)
+    # sigma=0 usa lo shift-invert mode che è molto più veloce per trovare valori vicino allo 0
+
+    try:
+        min_eig = spla.eigsh(
+            K,
+            k=1,
+            sigma=0,  # Shift-Invert (cerca l'inverso, velocissimo per il minimo)
+            which="LM",  # Largest Magnitude dell'inverso
+            return_eigenvectors=False,
+            tol=1e-2,  # FONDAMENTALE: Ci accontentiamo dell'1% di errore
+            ncv=10,  # Aumentiamo i vettori di Lanczos per convergere in meno iterazioni
+        )[0]
+
+        # Se min_eig è troppo vicino a zero, evita divisioni assurde
+        if abs(min_eig) < 1e-15:
+            c = np.inf
+        else:
+            c = abs(max_eig / min_eig)
+
+    except (RuntimeError, ValueError):
+        # Se il calcolo esplode (matrice singolare), il condizionamento è infinito
+        c = np.inf
+
+    # 3. Salva il risultato nella matrice e restituisci la matrice
+    cond_numbers[alpha_counter, i] = c
+
+    print(f"Condition Number (stimato): {cond_numbers}")
+
+    return cond_numbers
+
+
 def main(use_sparse: bool = True) -> None:
     # PREPROCESSING
 
@@ -44,7 +92,10 @@ def main(use_sparse: bool = True) -> None:
     P = 1.0
     E = 1.0
     A = 1.0
-    alpha = 1.0
+    alpha_values = np.array([1.0])
+    alpha = float(alpha_values)
+    alpha_counter = np.where(alpha_values == alpha)[0][0]
+    cond_numbers = np.zeros((len(alpha_values), len(number_elements)))
 
     epsilon = (P / (2.0 * alpha * E * A)) * (-np.exp(-20.0 * alpha) + 1.0)
 
@@ -147,10 +198,11 @@ def main(use_sparse: bool = True) -> None:
             solver.nodal_displacements,
             number_elements,
             alpha,
+            alpha_counter,
+            alpha_values,
             E,
             A,
             P,
-            magnification_factor=1.0,
         )
 
         # Compute strain energy using the global solution (U = 0.5 * u^T * K * u)
@@ -162,12 +214,17 @@ def main(use_sparse: bool = True) -> None:
         # Computes the relative error in the energy norm
         e = postprocessor.compute_relative_error_in_energy(i, epsilon, epsilon_h, e)
 
+        # Compute the conditioning number of K
+        cond_numbers = conditioning_numbers_of_K(
+            alpha_counter, cond_numbers, solver.global_stiffness_matrix, i
+        )
+
     # Plots the solution of the energy
     postprocessor.plot_solution(epsilon, epsilon_h)
     # Plots the relative error in the energy
     postprocessor.plot_e(e, h)
     # Plots the relative error in the energy
-    postprocessor.plot_convergence_rate(e, h)
+    postprocessor.plot_convergence_rate(e, h, cond_numbers)
 
 
 if __name__ == "__main__":

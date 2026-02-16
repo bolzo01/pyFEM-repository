@@ -71,8 +71,6 @@ def conditioning_numbers_of_K(alpha_counter, cond_numbers, K, i: int) -> np.ndar
     # 3. Salva il risultato nella matrice e restituisci la matrice
     cond_numbers[alpha_counter, i] = c
 
-    print(f"Condition Number (stimato): {cond_numbers}")
-
     return cond_numbers
 
 

@@ -84,7 +84,9 @@ def main(use_sparse: bool = True) -> None:
     number_elements = np.zeros(15)
     for n in range(0, 15):
         number_elements[n] = 2**n
-    h = L / number_elements
+    dofs_array = (
+        2.0 * number_elements
+    ) + 1.0  # Degrees of freedom array computation (DOFs) for 3-node elements
     P = 1.0
     E = 1.0
     A = 1.0
@@ -117,7 +119,17 @@ def main(use_sparse: bool = True) -> None:
 
             # Nodes and points calculation
             num_nodes = int((2.0 * Ne) + 1)
-            points = np.linspace(0.0, 10.0, num_nodes)
+
+            # Graded Mesh Generation
+            r = 2.0  # Grading parameter (r > 1 refines near x=0, r=1 uniform mesh)
+
+            xi = np.linspace(
+                0.0, 1.0, num_nodes
+            )  # uniformly distributed points in the parametric space [0, 1]
+
+            points = L * (
+                xi**r
+            )  # Apply power-law mapping to physical space [0, L] with grading
 
             # Connectivity generation
             element_connectivity = connectivity_3nodes_per_element(int(Ne))
@@ -213,15 +225,12 @@ def main(use_sparse: bool = True) -> None:
                 alpha_counter, cond_numbers, solver.global_stiffness_matrix, i
             )
 
-    # Plots the solution of the energy
-    postprocessor.plot_solution(
-        epsilon,
-        epsilon_h,
-    )
     # Plots the relative error in the energy
-    postprocessor.plot_e(e, h)
+    postprocessor.plot_e_grading(e, dofs_array)
+    # Compute the convergence rate
+    postprocessor.calculate_convergence_rates(e, dofs_array, is_dofs=True)
     # Plots the relative error in the energy
-    postprocessor.plot_convergence_rate(e, h, cond_numbers)
+    postprocessor.plot_convergence_rate_grading(e, dofs_array, cond_numbers)
 
 
 if __name__ == "__main__":

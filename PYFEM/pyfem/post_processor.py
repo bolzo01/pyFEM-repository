@@ -3,7 +3,7 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2026/02/13 17:29:59
+Last modified: 2026/02/16 01:43:57
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -95,11 +95,11 @@ class PostProcessor:
 
         epsilon_h[alpha_counter, i] = 0.5 * (u.T @ (K @ u))
 
-        if alpha_counter == (alpha_values.size - 1):
-            if i == (number_elements.size - 1):
-                print(
-                    f"\n- Total strain energy in the system (from FEM global computation): epsilon_h = {epsilon_h}"
-                )
+        # if alpha_counter == (alpha_values.size - 1):
+        #     if i == (number_elements.size - 1):
+        #         print(
+        #             f"\n- Total strain energy in the system (from FEM global computation): epsilon_h = {epsilon_h}"
+        #         )
 
         return epsilon_h
 
@@ -128,11 +128,11 @@ class PostProcessor:
             -np.exp(-20.0 * alpha) + 1.0
         )
 
-        if alpha_counter == (alpha_values.size - 1):
-            if i == (number_elements.size - 1):
-                print(
-                    f"\n- Analytical solution of strain energy in the system: epsilon = {epsilon}"
-                )
+        # if alpha_counter == (alpha_values.size - 1):
+        #     if i == (number_elements.size - 1):
+        #         print(
+        #             f"\n- Analytical solution of strain energy in the system: epsilon = {epsilon}"
+        #         )
 
         return epsilon
 
@@ -157,9 +157,9 @@ class PostProcessor:
             / epsilon[alpha_counter, i]
         ) ** 0.5
 
-        if alpha_counter == (alpha_values.size - 1):
-            if i == (number_elements.size - 1):
-                print(f"\n- Relative error in the energy norm: e = {e}")
+        # if alpha_counter == (alpha_values.size - 1):
+        #     if i == (number_elements.size - 1):
+        #         print(f"\n- Relative error in the energy norm: e = {e}")
 
         return e
 
@@ -195,12 +195,14 @@ class PostProcessor:
             u_h,
             marker="o",
             linestyle="-",
-            label=f"FEM Solution u_h (number of elements = {num_elements})",
+            label="FEM Solution u_h",
         )
 
         plt.xlabel("Position x [m]")
         plt.ylabel("Displacement u(x) [m]")
-        plt.title(f"Comparison: Analytical vs FEM (α = {self.alpha})")
+        plt.title(
+            f"Comparison: Analytical vs FEM (α = {self.alpha} and number of elements = {num_elements})"
+        )
         plt.legend()
         plt.grid(True, which="both", linestyle="--", alpha=0.7)
         plt.show()
@@ -228,6 +230,7 @@ class PostProcessor:
                 marker="^",
                 linestyle="-",
                 color="r",
+                label=f"epsilon for alpha = {alpha_values[i]}",
             )
             plt.plot(
                 number_elements,
@@ -295,6 +298,56 @@ class PostProcessor:
         plt.grid(True)
         plt.show()
 
+    def plot_e_grading(
+        self,
+        e: np.ndarray,
+        dofs: np.ndarray,
+    ) -> None:
+        """
+        Print of the relative error in energy for different number of elements and DOFs.
+
+        Returns:
+            None.
+        """
+
+        number_elements = self.number_elements
+        alpha_values = self.alpha_values
+
+        for i in range(alpha_values.size):
+            plt.plot(
+                number_elements,
+                e[i, :].flatten(),
+                marker="o",
+                linestyle="-",
+                label=f"alpha = {alpha_values[i]}",
+            )
+        plt.xlabel("Number of elements")
+        plt.ylabel("Error in energy norm")
+        plt.title(
+            f"Error in energy norm in function of number of elements for α = {alpha_values} - WITH MESH GRADING"
+        )
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+        # Plotting against DOFs instead of h
+        for i in range(alpha_values.size):
+            plt.plot(
+                dofs,
+                e[i, :].flatten(),
+                marker="x",
+                linestyle="-",
+                label=f"alpha = {alpha_values[i]}",
+            )
+        plt.xlabel("Degrees of Freedom (DOFs)")
+        plt.ylabel("Error in energy")
+        plt.title(
+            f"Error in energy norm in function of DOFs for α = {alpha_values} - WITH MESH GRADING"
+        )
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
     def plot_convergence_rate(
         self,
         e: np.ndarray,
@@ -352,6 +405,135 @@ class PostProcessor:
         plt.xlabel("Element size h (Log scale)")
         plt.ylabel("Error in energy and conditioning numbers (Log scale)")
         plt.title(f"Convergence Rate and Conditioning number for α = {alpha_values}")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+    def calculate_convergence_rates(
+        self, e: np.ndarray, x_array: np.ndarray, is_dofs: bool = False
+    ) -> None:
+        """
+        Calculates the asymptotic convergence rates for multiple alpha values.
+        It iterates over the rows of the error matrix.
+
+        Parameters:
+        e       (np.ndarray): 2D array of relative errors (rows: alpha values, columns: mesh refinements).
+        x_array (np.ndarray): 1D array of element sizes (h) or Degrees of Freedom (DOFs).
+        is_dofs (bool): True if x_array contains DOFs, False if it contains h.
+
+        Returns:
+        list[float]: A list containing the calculated asymptotic convergence rate for each alpha.
+        """
+        convergence_rates = []
+        num_alphas = e.shape[0]
+        alpha_values = self.alpha_values
+
+        for i in range(num_alphas):
+            # Extract the 1D error array for the current alpha (i-th row)
+            e_row = e[i, :]
+
+            # Filter out uncomputed values (zeros) or NaNs to prevent math errors
+            valid_mask = (e_row > 0) & (~np.isnan(e_row))
+            valid_e = e_row[valid_mask]
+            valid_x = x_array[valid_mask]
+
+            if len(valid_e) < 2:
+                # Append a NaN value and print the failure explicitly
+                convergence_rates.append(float("nan"))
+                print(
+                    f"- Convergence rate for alpha = {alpha_values[i]}: NaN (insufficient data)"
+                )
+                continue
+
+            # Find the index of the minimum error before round-off errors dominate
+            min_idx = int(np.argmin(valid_e))
+
+            if min_idx >= 2:
+                # Rigorous asymptotic calculation BEFORE the loss of precision
+                idx2 = min_idx - 1
+                idx1 = min_idx - 2
+            else:
+                # Fallback to the last two available valid points
+                idx2 = -1
+                idx1 = -2
+
+            e1, e2 = valid_e[idx1], valid_e[idx2]
+            x1, x2 = valid_x[idx1], valid_x[idx2]
+
+            # Calculate log-log slope
+            slope = (np.log(e2) - np.log(e1)) / (np.log(x2) - np.log(x1))
+
+            # The slope is inverted if calculated with respect to DOFs
+            rate = -slope if is_dofs else slope
+            convergence_rates.append(rate)
+
+            # Print the successfully calculated rate
+            print(f"- Convergence rate for alpha = {alpha_values[i]}: {rate:.4f}")
+
+        return None
+
+    def plot_convergence_rate_grading(
+        self,
+        e: np.ndarray,
+        dofs: np.ndarray,
+        cond_numbers: np.ndarray,
+    ) -> None:
+        """
+        Print of the convergence rate in energy vs DOFs (Log-Log scale).
+
+        Returns:
+            None.
+        """
+
+        number_elements = self.number_elements
+        alpha_values = self.alpha_values
+
+        for i in range(alpha_values.size):
+            plt.loglog(
+                number_elements,
+                e[i, :].flatten(),
+                marker="o",
+                linestyle="-",
+                label=f"Error for alpha = {alpha_values[i]}",
+            )
+
+            plt.loglog(
+                number_elements,
+                cond_numbers[i, :].flatten(),
+                marker="*",
+                linestyle="-",
+                label=f"cond. number for alpha = {alpha_values[i]}",
+            )
+        plt.xlabel("Number of elements (Log scale)")
+        plt.ylabel("Error in energy and conditioning numbers (Log scale)")
+        plt.title(
+            f"Convergence Rate and Conditioning number for α = {alpha_values} - WITH MESH GRADING"
+        )
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+        # Plotting against DOFs instead of h
+        for i in range(alpha_values.size):
+            plt.loglog(
+                dofs,
+                e[i, :].flatten(),
+                marker="x",
+                linestyle="-",
+                label=f"Error for alpha = {alpha_values[i]}",
+            )
+            plt.loglog(
+                dofs,
+                cond_numbers[i, :].flatten(),
+                marker="*",
+                linestyle="-",
+                label=f"cond. number for alpha = {alpha_values[i]}",
+            )
+        plt.xlabel("Degrees of Freedom (DOFs) (Log scale)")
+        plt.ylabel("Error in energy and conditioning numbers (Log scale)")
+        plt.title(
+            f"Convergence Rate and Conditioning number for α = {alpha_values} - WITH MESH GRADING"
+        )
         plt.legend()
         plt.grid(True)
         plt.show()

@@ -1,77 +1,8 @@
 #!/usr/bin/env python
 
 import numpy as np
-import scipy.sparse.linalg as spla
 
 import pyfem
-
-
-def connectivity_3nodes_per_element(Ne: int) -> list[list[int]]:
-    """
-    Generates the connectivity matrix for 1D quadratic elements (3 nodes).
-
-    Parameters:
-    Ne (int): Number of finite elements in the mesh.
-
-    Returns:
-    element_connectivity (list[list[int]]): A matrix of size (n_elements x 3) containing integer node indices.
-    """
-    # 1. Initialize the matrix
-    element_connectivity = []
-
-    # 2. Fill the matrix
-    for element in range(Ne):
-        start_node = 2 * element
-        # Crea una lista per il singolo elemento [n1, n2, n3]
-        element_nodes = [start_node, start_node + 1, start_node + 2]
-
-        # Aggiungila alla lista principale
-        element_connectivity.append(element_nodes)
-
-    return element_connectivity
-
-
-def conditioning_numbers_of_K(alpha_counter, cond_numbers, K, i: int) -> np.ndarray:
-    """
-    Computes the conditioning number of the matrix K.
-    It's a matrix and every row is related to a different value of alpha.
-
-    Returns:
-        cond_numbers.
-    """
-
-    # 1. Calcola l'autovalore massimo (k=1, Largest Magnitude)
-    # return_eigenvectors=False risparmia memoria
-    max_eig = spla.norm(K, np.inf)
-
-    # 2. Calcola l'autovalore minimo (k=1, Smallest Magnitude)
-    # sigma=0 usa lo shift-invert mode che è molto più veloce per trovare valori vicino allo 0
-
-    try:
-        min_eig = spla.eigsh(
-            K,
-            k=1,
-            sigma=0,  # Shift-Invert (cerca l'inverso, velocissimo per il minimo)
-            which="LM",  # Largest Magnitude dell'inverso
-            return_eigenvectors=False,
-            tol=1e-2,  # FONDAMENTALE: Ci accontentiamo dell'1% di errore
-            ncv=10,  # Aumentiamo i vettori di Lanczos per convergere in meno iterazioni
-        )[0]
-
-        # Se min_eig è troppo vicino a zero, evita divisioni assurde
-        if abs(min_eig) < 1e-15:
-            c = np.inf
-        else:
-            c = abs(max_eig / min_eig)
-
-    except (RuntimeError, ValueError):
-        # Se il calcolo esplode (matrice singolare), il condizionamento è infinito
-        c = np.inf
-
-    # 3. Salva il risultato nella matrice e restituisci la matrice
-    cond_numbers[alpha_counter, i] = c
-
-    return cond_numbers
 
 
 def main(use_sparse: bool = True) -> None:
@@ -81,20 +12,21 @@ def main(use_sparse: bool = True) -> None:
 
     # Problem parameters
     L = 10.0
-    number_elements = np.zeros(15)
-    for n in range(0, 15):
-        number_elements[n] = 2**n
-    h = L / number_elements
+    number_elements = np.array([1.0])
     P = 1.0
     E = 1.0
     A = 1.0
-    alpha_values = np.array([0.5, 1.0, 2.0, 4.0])
+    alpha_values = np.array([1.0])
+
+    # Connectivity generation
+    element_connectivity = element_connectivity = [
+        [0, 1],
+    ]
 
     # Initialization of the vectors before the cicles
-    epsilon = np.zeros((len(alpha_values), len(number_elements)))
     epsilon_h = np.zeros((len(alpha_values), len(number_elements)))
+    epsilon = np.zeros((len(alpha_values), len(number_elements)))
     e = np.zeros((len(alpha_values), len(number_elements)))
-    cond_numbers = np.zeros((len(alpha_values), len(number_elements)))
 
     for alpha in alpha_values:
         alpha_counter = np.where(alpha_values == alpha)[0][0]
@@ -103,7 +35,7 @@ def main(use_sparse: bool = True) -> None:
         # Define element properties registry
         element_properties = pyfem.make_element_properties(
             [
-                ("bar", ("bar3_1D", {"E": E, "A": A, "k": alpha**2 * E * A})),
+                ("bar", ("bar_1D", {"E": E, "A": A, "k": alpha**2 * E * A})),
             ]
         )
 
@@ -116,11 +48,8 @@ def main(use_sparse: bool = True) -> None:
             element_property_labels = ["bar"] * num_elements
 
             # Nodes and points calculation
-            num_nodes = int((2.0 * Ne) + 1)
-            points = np.linspace(0.0, 10.0, num_nodes)
-
-            # Connectivity generation
-            element_connectivity = connectivity_3nodes_per_element(int(Ne))
+            num_nodes = int((1.0 * Ne) + 1)
+            points = np.linspace(0.0, L, num_nodes)
 
             # 3. Mesh
 
@@ -207,21 +136,6 @@ def main(use_sparse: bool = True) -> None:
 
             # Computes the relative error in the energy norm
             e = postprocessor.compute_relative_error_in_energy(i, epsilon, epsilon_h, e)
-
-            # Compute the conditioning number of K
-            cond_numbers = conditioning_numbers_of_K(
-                alpha_counter, cond_numbers, solver.global_stiffness_matrix, i
-            )
-
-    # Plots the solution of the energy
-    postprocessor.plot_solution(
-        epsilon,
-        epsilon_h,
-    )
-    # Plots the relative error in the energy
-    postprocessor.plot_e(e, h)
-    # Plots the relative error in the energy
-    postprocessor.plot_convergence_rate(e, h, cond_numbers)
 
 
 if __name__ == "__main__":

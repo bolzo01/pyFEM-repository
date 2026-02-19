@@ -3,7 +3,7 @@
 Module defining the PostProcessor class.
 
 Created: 2025/10/18 18:03:29
-Last modified: 2026/02/16 01:43:57
+Last modified: 2026/02/19 17:59:38
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -198,8 +198,8 @@ class PostProcessor:
             label="FEM Solution u_h",
         )
 
-        plt.xlabel("Position x [m]")
-        plt.ylabel("Displacement u(x) [m]")
+        plt.xlabel("Position x")
+        plt.ylabel("Displacement u(x) and u_h(x)")
         plt.title(
             f"Comparison: Analytical vs FEM (α = {self.alpha} and number of elements = {num_elements})"
         )
@@ -273,9 +273,9 @@ class PostProcessor:
                 label=f"alpha = {alpha_values[i]}",
             )
         plt.xlabel("Number of elements")
-        plt.ylabel("Error in energy norm")
+        plt.ylabel("Relative error in energy")
         plt.title(
-            f"Error in energy norm in function of number of elements for α = {alpha_values}"
+            f"Relative error in energy in function of number of elements for α = {alpha_values}"
         )
         plt.legend()
         plt.grid(True)
@@ -290,9 +290,9 @@ class PostProcessor:
                 label=f"alpha = {alpha_values[i]}",
             )
         plt.xlabel("Element size h")
-        plt.ylabel("Error in energy")
+        plt.ylabel("Relative error in energy")
         plt.title(
-            f"Error in energy norm in function of element size h for α = {alpha_values}"
+            f"Relative error in energy in function of element size h for α = {alpha_values}"
         )
         plt.legend()
         plt.grid(True)
@@ -322,9 +322,9 @@ class PostProcessor:
                 label=f"alpha = {alpha_values[i]}",
             )
         plt.xlabel("Number of elements")
-        plt.ylabel("Error in energy norm")
+        plt.ylabel("Relative error in energy")
         plt.title(
-            f"Error in energy norm in function of number of elements for α = {alpha_values} - WITH MESH GRADING"
+            f"Relative error in energy norm in function of number of elements for α = {alpha_values} - WITH MESH GRADING"
         )
         plt.legend()
         plt.grid(True)
@@ -340,9 +340,9 @@ class PostProcessor:
                 label=f"alpha = {alpha_values[i]}",
             )
         plt.xlabel("Degrees of Freedom (DOFs)")
-        plt.ylabel("Error in energy")
+        plt.ylabel("Relative error in energy")
         plt.title(
-            f"Error in energy norm in function of DOFs for α = {alpha_values} - WITH MESH GRADING"
+            f"Relative error in energy in function of DOFs for α = {alpha_values} - WITH MESH GRADING"
         )
         plt.legend()
         plt.grid(True)
@@ -378,11 +378,13 @@ class PostProcessor:
                 cond_numbers[i, :].flatten(),
                 marker="*",
                 linestyle="-",
-                label=f"cond. number for alpha = {alpha_values[i]}",
+                label=f"Cond. number for alpha = {alpha_values[i]}",
             )
         plt.xlabel("Number of elements (Log scale)")
         plt.ylabel("Error in energy and conditioning numbers (Log scale)")
-        plt.title(f"Convergence Rate and Conditioning number for α = {alpha_values}")
+        plt.title(
+            f"Error and Conditioning number for α = {alpha_values} in log-log scale"
+        )
         plt.legend()
         plt.grid(True)
         plt.show()
@@ -400,11 +402,13 @@ class PostProcessor:
                 cond_numbers[i, :].flatten(),
                 marker="*",
                 linestyle="-",
-                label=f"cond. number for alpha = {alpha_values[i]}",
+                label=f"Cond. number for alpha = {alpha_values[i]}",
             )
         plt.xlabel("Element size h (Log scale)")
         plt.ylabel("Error in energy and conditioning numbers (Log scale)")
-        plt.title(f"Convergence Rate and Conditioning number for α = {alpha_values}")
+        plt.title(
+            f"Error and Conditioning number for α = {alpha_values} in log-log scale"
+        )
         plt.legend()
         plt.grid(True)
         plt.show()
@@ -502,12 +506,12 @@ class PostProcessor:
                 cond_numbers[i, :].flatten(),
                 marker="*",
                 linestyle="-",
-                label=f"cond. number for alpha = {alpha_values[i]}",
+                label=f"Cond. number for alpha = {alpha_values[i]}",
             )
         plt.xlabel("Number of elements (Log scale)")
         plt.ylabel("Error in energy and conditioning numbers (Log scale)")
         plt.title(
-            f"Convergence Rate and Conditioning number for α = {alpha_values} - WITH MESH GRADING"
+            f"Error and Conditioning number for α = {alpha_values} in log-log scale - WITH MESH GRADING"
         )
         plt.legend()
         plt.grid(True)
@@ -527,12 +531,12 @@ class PostProcessor:
                 cond_numbers[i, :].flatten(),
                 marker="*",
                 linestyle="-",
-                label=f"cond. number for alpha = {alpha_values[i]}",
+                label=f"Cond. number for alpha = {alpha_values[i]}",
             )
         plt.xlabel("Degrees of Freedom (DOFs) (Log scale)")
         plt.ylabel("Error in energy and conditioning numbers (Log scale)")
         plt.title(
-            f"Convergence Rate and Conditioning number for α = {alpha_values} - WITH MESH GRADING"
+            f"Error and Conditioning number for α = {alpha_values} in log-log scale - WITH MESH GRADING"
         )
         plt.legend()
         plt.grid(True)

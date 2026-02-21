@@ -3,7 +3,7 @@
 Module defining the FEA solvers.
 
 Created: 2025/10/18 10:24:33
-Last modified: 2026/02/12 12:58:31
+Last modified: 2026/02/21 16:21:50
 Author: Angelo Simone (angelo.simone@unipd.it)
 """
 
@@ -167,10 +167,10 @@ class LinearStaticSolver:
         if len(prescribed_dofs) > 0:
             self.nodal_displacements[prescribed_dofs] = prescribed_vals
 
-        print("\n- Nodal displacements U:")
-        print(self.nodal_displacements)
+        # print("\n- Nodal displacements U:")
+        # print(self.nodal_displacements)
 
-        self._compute_statistics(K, free_dofs, prescribed_dofs)
+        # self._compute_statistics(K, free_dofs, prescribed_dofs)
 
         self.state = SolverState.SOLVED
 
